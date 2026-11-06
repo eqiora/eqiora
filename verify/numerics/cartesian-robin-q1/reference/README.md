@@ -193,3 +193,121 @@ falsifier fits the looser reference allowance rho but violates the direct
 exported-operator recovery ceiling R. Robin
 matrix falsifiers apply to h>0; omitting a zero matrix is not called a falsifier.
 No transient, nonconstant, curved, MPI, GPU or native product claim follows.
+
+## Public result and boundary-observation comparison
+
+`compare-observations` adds a separate mathematical entry for nine exported Q1
+coefficients and six authored public boundary integrals. It reuses the coefficient
+and reference-free-residual mathematics above. It does not consume a candidate
+matrix, load or private nodal weak reactions, and it does not claim the full
+operator, physical solver residual or direct recovery-R checks were measured.
+The existing `compare` entry, all nine full-operator checks, inputs, budgets and
+reports remain unchanged.
+
+The intended producer uses general `CommonResult.observe` or Python
+`Result.observe` with authored boundary integrals of `normal(-k*grad(T))` or
+`trace(T)`, and the right-face convective expression. The actual Observable,
+Field, Model, Plan and Result associations belong to a separate producer receipt.
+Input identity labels alone do not prove a public producer supplied the values.
+No private scalar reaction accessor, fabricated A/b, public test API, nested Cargo
+execution or persisted product schema is introduced by this reference entry.
+
+For the complete physical nodal vector v[i,j], define hx=L/2, hy=H/2,
+qy=H(1/4,1/2,1/4), and qx=L(1/4,1/2,1/4). The six exact affine functionals
+F(v)=t^T v+c, in the required order, are:
+
+| Name | Exact functional | Sum of absolute weights | Unit |
+|---|---|---|---|
+| left_heat | k/hx sum_j qy_j (v[1,j]-v[0,j]) | 4kH/L | W/m |
+| right_heat | -k/hx sum_j qy_j (v[2,j]-v[1,j]) | 4kH/L | W/m |
+| bottom_heat | k/hy sum_i qx_i (v[i,1]-v[i,0]) | 4kL/H | W/m |
+| top_heat | -k/hy sum_i qx_i (v[i,2]-v[i,1]) | 4kL/H | W/m |
+| right_temperature | sum_j qy_j v[2,j] | H | K*m |
+| right_convective_heat | h sum_j qy_j v[2,j]-h H Tinf | hH | W/m |
+
+Only the last functional has a nonzero constant c=-h H Tinf. The conductive signs
+follow the outward normals: left/bottom have negative coordinate normals, and
+physical heat is -k grad(T) dot n. The exact analytic targets in table order are
+k a H, -k a H, 0, 0, H(Tc+aL), and -k a H, including the cooling case.
+
+These weights follow by differentiating the Q1 polynomial in the cell adjacent
+to a face, then integrating its linear trace along each of the two boundary
+segments. They use every relevant endpoint and midpoint node. Two-point
+Gauss-Legendre quadrature per selected segment integrates all these traces exactly;
+there is no mathematical quadrature-truncation allowance. The reference verifies
+each weight norm and analytic target by exact rational arithmetic.
+
+With the unchanged fixed E, U and eta above, let V=U+E. Before any observation data
+is examined, set
+
+```
+tau_obs = eta (sum_i |t_i| V + |c|)
+target_allowance = (sum_i |t_i|) E + tau_obs.
+```
+
+Require both |native-F(exported v)|<=tau_obs and
+|native-F(exact u)|<=target_allowance. The coefficient functional is evaluated
+exactly on the captured binary64 rational coefficients. Both the primary and
+replayed observation values must independently pass both bounds. There is no
+extra replay tolerance or bitwise-replay promise. As above, eta=2^-40 is a
+**declared arithmetic acceptance ceiling, not an operation-count theorem**.
+No candidate value chooses its scale. At h=0 the convective functional and both
+its ceilings are exactly zero; a nonzero subnormal value fails.
+
+The strict input object has exactly these keys:
+
+```text
+schema: 1
+kind: "public-observations"
+case: one of the same four fixed case names
+order: nine exact [x,y] decimal coordinate-string pairs, x-major/y-fast
+units: {"coordinates":"m", "coefficients":"K"}
+coefficients: nine {coordinates_m, value_binary64_hex} records in that order
+observations: the six records below, in table order
+```
+
+Each observation record has exactly:
+
+```json
+{
+  "name": "left_heat",
+  "boundary": "left",
+  "quantity": "outward_conductive_heat",
+  "unit": "W/m",
+  "quadrature": {"family":"gauss-legendre", "points_per_segment":2},
+  "value_binary64_hex": "canonical finite float.hex value",
+  "replay_value_binary64_hex": "canonical finite float.hex value"
+}
+```
+
+The first four records use their table face and quantity
+`outward_conductive_heat`; right_temperature uses right / temperature_trace /
+K*m, and right_convective_heat uses right / outward_convective_heat / W/m. Names,
+order, boundaries, quantities, units, quadrature family and the exact integer
+point count are checked. Primary and replay values must be canonical finite
+binary64 hex strings. All nine coordinates must be complete, unique, exactly
+on-grid and ordered; essential temperatures must equal Tc exactly. Private A/b,
+weak-reaction keys, extra/missing keys, wrong units, duplicate JSON keys and
+unsupported controls are rejected. Quadrature metadata and replay values are
+required assertions; authentic execution, source observation identity and control
+binding still require the producer receipt.
+
+```sh
+python3 robin.py compare-observations observations.json --output observation-comparison.json
+```
+
+Output has kind public-observations and reports only its actual coefficient,
+reference residual and observation checks. It includes exact weights, constants,
+analytic targets, fixed ceilings, primary/replay errors and raw-input SHA-256.
+It reports no measured operator/load, physical solver residual, private reaction
+or direct-R gate. The original full entry and its reports retain their separate
+meaning and identity.
+
+Independent synthetic tests check the six weights by exact per-segment integration
+of arbitrary Q1 nodal vectors, all four analytic targets and signs, fixed norms
+and ceilings, zero-h strictness, primary/replay independence, and coefficient,
+face, sign, endpoint-weight, convective-offset, unit, identity and quadrature
+falsifiers. Before factoring, all four full synthetic payloads and reports were
+saved from the frozen original reference; their serialized reports remain exactly
+equal after factoring. No imported solve or observation output supplies an
+expectation, and these checks alone do not authenticate an imported producer.
