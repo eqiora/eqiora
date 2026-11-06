@@ -46,7 +46,7 @@ def altered_sources():
         'changed-component': equations + '  parameter incorrect_tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.5,0.1875]);\n'
             + '  form weak for balance {' + weak.replace('dot(trace(w),tx)', 'dot(trace(w),incorrect_tx)', 1),
         'reversed-traction': equations + '  form weak for balance {' + weak.replace('dot(trace(w),tx)', 'dot(trace(w),-tx)', 1),
-        'partial-contraction': equations + '  form weak for balance {' + weak.replace('frobenius(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))', 'contract(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))),axes=((0,0),))', 1),
+        'partial-contraction': equations + '  form weak for balance {' + weak.replace('2*mu*frobenius(symmetric_part(grad(w)),symmetric_part(grad(displacement))) + lambda*div(w)*div(displacement)', '2*mu*contract(symmetric_part(grad(w)),symmetric_part(grad(displacement)),axes=((0,0),)) + lambda*div(w)*div(displacement)', 1),
         'wrong-unit': source.replace('parameter tx: vector<Pa,3>', 'parameter tx: vector<N,3>', 1),
     }
 

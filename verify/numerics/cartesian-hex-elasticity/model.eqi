@@ -34,7 +34,7 @@ public component CartesianHexElasticity(
   observable left_z: N = integral(component(normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement)))),indices=(2,)),measure(x_lower));
   form weak for balance {
     test w: m for displacement zero_on x_lower;
-    integrate(body,frobenius(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))) =
+    integrate(body,2*mu*frobenius(symmetric_part(grad(w)),symmetric_part(grad(displacement))) + lambda*div(w)*div(displacement)) =
       integrate(x_upper,dot(trace(w),tx))
       +integrate(y_lower,dot(trace(w),-ty))
       +integrate(y_upper,dot(trace(w),ty))

@@ -201,7 +201,7 @@ fn unsupported_or_illtyped_authored_forms_reject_before_any_result() {
     let incomplete_contraction = format!(
         "{}  form weak for balance {{{}",
         equations,
-        weak.replacen("frobenius(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))", "contract(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))),axes=((0,0),))", 1)
+        weak.replacen("2*mu*frobenius(symmetric_part(grad(w)),symmetric_part(grad(displacement))) + lambda*div(w)*div(displacement)", "2*mu*contract(symmetric_part(grad(w)),symmetric_part(grad(displacement)),axes=((0,0),)) + lambda*div(w)*div(displacement)", 1)
     );
     let wrong_unit = SOURCE.replacen("parameter tx: vector<Pa,3>", "parameter tx: vector<N,3>", 1);
     assert_rejected_controls([
