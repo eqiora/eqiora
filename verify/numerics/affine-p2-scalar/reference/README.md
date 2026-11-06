@@ -202,7 +202,16 @@ Bu=Cinf epsilon. The independent implication is
 
 Both coefficient and residual gates must pass. Essential equality removes any
 unbudgeted boundary lift error. No Cinf or budget is estimated from Eqiora data.
-For native reactions, propose the separate dimensionless allowance
+For native reactions, normalize both the native constrained actions and the
+analytic total by the same physical weak-action scale before any comparison:
+
+```
+actionbar_i = action_i / (kappa_star u_star ell_star^(d-2))
+Rbar_D = R_D / (kappa_star u_star ell_star^(d-2)).
+```
+
+Both are dimensionless, including in 3D where the unscaled R_D has units m.
+Propose the separate dimensionless allowance
 
 ```
 Umax = max of analytic u at domain vertices
@@ -210,9 +219,9 @@ rho = epsilon max(1, ||Kbar||_infinity Umax + ||Fbar+Gbar||_infinity).
 ```
 
 This is a fixed accuracy ceiling (8192 binary64 unit roundoffs), not a universal
-roundoff theorem. Check each native constrained action against rational rbar of
-the actual complete coefficient vector within rho. Also check its sum against
-the analytic R_D with allowance m ||Kbar||_infinity Bu + m rho. Here m=5 or 25.
+roundoff theorem. Check each actionbar_i against rational rbar_i of the actual
+complete coefficient vector within rho. Also check the sum of actionbar_i against
+the analytic Rbar_D with allowance m ||Kbar||_infinity Bu + m rho. Here m=5 or 25.
 The full reaction vector cannot be replaced by a summed quantity alone.
 
 ## Predeclared falsifiers and integration checks
