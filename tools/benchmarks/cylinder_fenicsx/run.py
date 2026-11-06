@@ -13,7 +13,7 @@ import numpy as np
 from mesh_levels import LEVELS, mesh_level
 from reference_reader import load_reference
 from shared_measurement import ROOT, ComparisonError, digest
-from qualification import validate_qualification
+from qualification import validate_qualification, check_report_reference
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,7 @@ def validate_reports(reports, cases, mode):
         if key[0] not in by_label or key[1] not in ('eqiora', 'fenicsx') or key in seen or report['mode'] != mode:
             raise ComparisonError('unexpected/duplicate case-tool report or execution mode')
         seen.add(key); case = by_label[key[0]]
+        check_report_reference(report, case.sha256)
         if report['mesh']['digest'] != case.reference.data['mesh_digest']:
             raise ComparisonError('worker mesh differs from the independently frozen case')
         extra = {name: {'association': field['association'], 'values': np.asarray(field['values'])}

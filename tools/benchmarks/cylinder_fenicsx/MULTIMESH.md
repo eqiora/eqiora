@@ -4,8 +4,10 @@ This follow-up retains the same finite-channel linear Stokes problem, MINI
 velocity/P1 pressure, full-stress traction outlet, force/flux definitions and
 external-only engineering-budget algorithm in [the comparison](README.md).
 The original single-mesh result and every original reference/candidate artifact
-remain unchanged. Mesh-only preparation has completed under the declared controls. No additional
-Stokes solves or measurements have started.
+remain unchanged. Mesh preparation and the external-only A/B/C calibration on all
+three meshes completed under the declared controls. All three calibration
+processes exited successfully and froze their references before any candidate.
+No multi-mesh candidate or timing campaign has started.
 
 ## Input-declared meshes
 
