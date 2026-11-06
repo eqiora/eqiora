@@ -148,7 +148,7 @@ impl ResolvedCommonPlan {
                     spatial,
                     matches!(
                         recognized.resources,
-                        NativeMeshResources::GmshSimplicial { .. }
+                        NativeMeshResources::MshSimplicial { .. }
                             | NativeMeshResources::AffineTriangleSimplicial { .. }
                     ),
                 )?;
@@ -231,7 +231,7 @@ impl ResolvedCommonPlan {
                     spatial,
                     matches!(
                         recognized.resources,
-                        NativeMeshResources::GmshSimplicial { .. }
+                        NativeMeshResources::MshSimplicial { .. }
                             | NativeMeshResources::AffineTriangleSimplicial { .. }
                     ),
                 )?;

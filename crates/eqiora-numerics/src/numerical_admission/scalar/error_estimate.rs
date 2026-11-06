@@ -24,7 +24,7 @@ impl CommonSpatialPlan {
                 "residual estimation requires one complete physical Region",
             ));
         };
-        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        let (NativeMeshResources::MshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
         else {
             return Err(invalid(

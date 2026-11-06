@@ -194,7 +194,7 @@ fn translating_material_profile_uses_current_boundary_coordinates() {
         .replace("2 / (1+0.5[1/s]*time())^2", "2 + coordinate(0)/1[m]");
     let plan = mapped_plan_at_step(&source, 0.1);
     let linear = plan.as_spatial().unwrap();
-    let NativeMeshResources::GmshSimplicial { mesh, .. } = linear.admission.resources() else {
+    let NativeMeshResources::MshSimplicial { mesh, .. } = linear.admission.resources() else {
         unreachable!()
     };
     let expected = mesh

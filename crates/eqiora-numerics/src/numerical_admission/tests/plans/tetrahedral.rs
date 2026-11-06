@@ -25,9 +25,9 @@ fn geometry() -> CanonicalGeometryV1 {
 }
 
 fn resources(geometry: &CanonicalGeometryV1, permuted: bool) -> AuthenticatedCommonMesh {
-    AuthenticatedCommonMesh::gmsh_4152(
+    AuthenticatedCommonMesh::import_msh41(
         geometry.clone(),
-        eqiora_artifact::GmshMeshPolicyV1::explicit(1e-12, 0.01, 12, 5.).unwrap(),
+        eqiora_artifact::MshImportPolicyV1::metres(0.01, 12, 16 * 1024 * 1024).unwrap(),
         observation(permuted),
     )
     .unwrap()

@@ -108,7 +108,7 @@ fn digest_resources(resources: &NativeMeshResources) -> Result<DigestedResources
             correspondence,
             production,
         }
-        | NativeMeshResources::GmshSimplicial {
+        | NativeMeshResources::MshSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -187,7 +187,7 @@ pub(crate) fn select_exact_model(
         ));
     }
     if stokes.is_ok() {
-        let (NativeMeshResources::GmshSimplicial {
+        let (NativeMeshResources::MshSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -214,7 +214,7 @@ pub(crate) fn select_exact_model(
         .map(RecognizedNativeModel::Stokes);
     }
     if transient.is_ok() || transient_geometry.is_ok() {
-        if let NativeMeshResources::GmshSimplicial {
+        if let NativeMeshResources::MshSimplicial {
             geometry,
             mesh,
             correspondence,
@@ -311,7 +311,7 @@ fn lower_scalar_typed<S: crate::spatial_expression::Coefficient>(
         resources,
         NativeMeshResources::AffineTriangleSimplicial { .. }
     ) || resources.geometry()?.polyhedral_vertices().is_some()
-        || matches!(resources, NativeMeshResources::GmshSimplicial { geometry, .. } if geometry.region().is_some())
+        || matches!(resources, NativeMeshResources::MshSimplicial { geometry, .. } if geometry.region().is_some())
     {
         return ExecutableSpatialEquations::simplicial(
             program,

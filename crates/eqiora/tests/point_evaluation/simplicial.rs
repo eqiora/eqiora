@@ -1,6 +1,6 @@
 //! Point observations retain the solved Field's physical type and exact occurrence.
 use super::*;
-use eqiora::artifact::{GmshMeshPolicyV1, ModelEnvelope};
+use eqiora::artifact::{ModelEnvelope, MshImportPolicyV1};
 use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
 use eqiora::solver::{
     LinearSolver, REFERENCE_LINEAR_SOLVER, REFERENCE_SOLVER_PROVIDER, ReductionPolicy, SolverPlan,
@@ -42,9 +42,9 @@ fn resources(geometry: &CanonicalGeometryV1, permuted: bool) -> AuthenticatedCom
         msh += &format!("{} {} {} {}\n", index + 1, cell[0], cell[1], cell[2]);
     }
     msh += "$EndElements\n";
-    AuthenticatedCommonMesh::gmsh_4152(
+    AuthenticatedCommonMesh::import_msh41(
         geometry.clone(),
-        GmshMeshPolicyV1::explicit(1e-12, 0.01, 8, 5.).unwrap(),
+        MshImportPolicyV1::metres(0.01, 8, 16 * 1024 * 1024).unwrap(),
         msh.into_bytes(),
     )
     .unwrap()

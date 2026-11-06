@@ -150,7 +150,7 @@ impl CommonSpatialPlan {
                             // Cell-constant initial coefficients sample the physical cell centroid.
                             sample(map.origin())?
                         }
-                        NativeMeshResources::GmshSimplicial { mesh, .. }
+                        NativeMeshResources::MshSimplicial { mesh, .. }
                         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
                             if key.entity.dimension() == 0 =>
                         {
@@ -159,7 +159,7 @@ impl CommonSpatialPlan {
                             )?;
                             sample(point)?
                         }
-                        NativeMeshResources::GmshSimplicial { mesh, .. }
+                        NativeMeshResources::MshSimplicial { mesh, .. }
                         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
                             if key.entity.dimension() == mesh.dimension()
                                 && inventory[&key.field].space == Space::simplex_p1_bubble() =>

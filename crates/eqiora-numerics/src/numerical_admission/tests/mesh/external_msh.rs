@@ -1,7 +1,7 @@
 //! Expectations authored before the import implementation: two square triangles
 //! and one unit tetrahedron, with analytic boundaries and unchanged input cells.
 use super::*;
-use eqiora_artifact::{MshCoordinateUnit, MshImportPolicyV1};
+use eqiora_artifact::MshImportPolicyV1;
 use eqiora_geometry::{PlanarFace, PlanarRegion};
 
 const SQUARE: &[u8] = b"$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 4 1 4\n2 1 0 4\n1\n2\n3\n4\n0 0 0\n1 0 0\n1 1 0\n0 1 0\n$EndNodes\n$Elements\n1 2 1 2\n2 1 2 2\n1 1 2 3\n2 1 3 4\n$EndElements\n";
@@ -42,7 +42,7 @@ fn tetrahedron() -> CanonicalGeometryV1 {
 }
 
 fn policy(facets: usize, bytes: usize) -> MshImportPolicyV1 {
-    MshImportPolicyV1::new(MshCoordinateUnit::Metres, 0.01, facets, bytes).unwrap()
+    MshImportPolicyV1::metres(0.01, facets, bytes).unwrap()
 }
 
 #[test]
@@ -88,9 +88,12 @@ fn external_msh_retains_two_triangles_or_one_tetrahedron_and_replays_honest_orig
         let replay = AuthenticatedCommonMesh::from_bytes(&bytes).unwrap();
         assert_eq!(owner, replay);
         assert_eq!(owner.digest().unwrap(), replay.digest().unwrap());
-        let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        wire["resources"]["mesh"]["kind"] = "gmsh4152".into();
-        assert!(AuthenticatedCommonMesh::from_bytes(&serde_json::to_vec(&wire).unwrap()).is_err());
+        let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(wire["resources"]["mesh"]["kind"], "external-msh41");
+        let text = String::from_utf8(bytes).unwrap();
+        let wrong_origin = text.replace("\"kind\":\"external-msh41\"", "\"kind\":\"gmsh4152\"");
+        assert_ne!(wrong_origin, text);
+        assert!(AuthenticatedCommonMesh::from_bytes(wrong_origin.as_bytes()).is_err());
     }
 }
 
@@ -118,4 +121,179 @@ fn external_msh_rejects_foreign_geometry_and_both_dimension_work_limits() {
             .is_err()
         );
     }
+}
+
+#[test]
+fn external_msh_replay_rejects_inconsistent_source_policy_and_resource_substitutions() {
+    let owner = AuthenticatedCommonMesh::import_msh41(square(1.), policy(4, 4096), SQUARE.to_vec())
+        .unwrap();
+    let bytes = String::from_utf8(owner.to_bytes().unwrap()).unwrap();
+    let wire: serde_json::Value = serde_json::from_str(&bytes).unwrap();
+    let production = wire["resources"]["mesh"]["production_base64"]
+        .as_str()
+        .unwrap();
+    let lineage = String::from_utf8(BASE64_STANDARD.decode(production).unwrap()).unwrap();
+    for replacement in [
+        lineage.replace("\"coordinate_unit\":\"m\"", "\"coordinate_unit\":\"mm\""),
+        lineage.replace(
+            "\"maximum_source_bytes\":4096",
+            "\"maximum_source_bytes\":1",
+        ),
+    ] {
+        assert_ne!(replacement, lineage);
+        let changed = bytes.replace(production, &BASE64_STANDARD.encode(replacement));
+        assert!(AuthenticatedCommonMesh::from_bytes(changed.as_bytes()).is_err());
+    }
+    let source = wire["resources"]["mesh"]["provider_output_base64"]
+        .as_str()
+        .unwrap();
+    let changed_source = String::from_utf8(SQUARE.to_vec())
+        .unwrap()
+        .replace("1 1 2 3", "1 1 3 2");
+    assert_ne!(changed_source.as_bytes(), SQUARE);
+    assert!(
+        AuthenticatedCommonMesh::from_bytes(
+            bytes
+                .replace(source, &BASE64_STANDARD.encode(changed_source))
+                .as_bytes()
+        )
+        .is_err()
+    );
+    // Changing quality alone leaves an inconsistent retained Mesh quality gate.
+    let new_policy = lineage.replace("\"minimum_mean_ratio\":0.01", "\"minimum_mean_ratio\":0.02");
+    assert_ne!(new_policy, lineage);
+    assert!(
+        AuthenticatedCommonMesh::from_bytes(
+            bytes
+                .replace(production, &BASE64_STANDARD.encode(new_policy))
+                .as_bytes()
+        )
+        .is_err()
+    );
+    // A coherent newly imported policy/resource occurrence is valid and distinct.
+    let new_occurrence = AuthenticatedCommonMesh::import_msh41(
+        square(1.),
+        MshImportPolicyV1::metres(0.02, 4, 4096).unwrap(),
+        SQUARE.to_vec(),
+    )
+    .unwrap();
+    let new_bytes = new_occurrence.to_bytes().unwrap();
+    assert_eq!(
+        AuthenticatedCommonMesh::from_bytes(&new_bytes).unwrap(),
+        new_occurrence
+    );
+    assert_ne!(new_occurrence.digest().unwrap(), owner.digest().unwrap());
+    assert_eq!(
+        new_occurrence.simplicial_mesh().unwrap().mesh().cells(),
+        owner.simplicial_mesh().unwrap().mesh().cells()
+    );
+    let new_wire: serde_json::Value = serde_json::from_slice(&new_bytes).unwrap();
+    let old_mesh = wire["resources"]["mesh"]["mesh_base64"].as_str().unwrap();
+    let new_mesh = new_wire["resources"]["mesh"]["mesh_base64"]
+        .as_str()
+        .unwrap();
+    assert_ne!(old_mesh, new_mesh);
+    assert!(
+        AuthenticatedCommonMesh::from_bytes(bytes.replace(old_mesh, new_mesh).as_bytes()).is_err()
+    );
+}
+
+#[test]
+fn external_msh_policy_deserialization_cannot_bypass_constructor_invariants() {
+    for (quality, facets, bytes) in [(0., 4, 4096), (2., 4, 4096), (0.01, 0, 4096), (0.01, 4, 0)] {
+        let raw = format!(
+            r#"{{"coordinate_unit":"m","minimum_mean_ratio":{quality},"maximum_boundary_facets":{facets},"maximum_source_bytes":{bytes}}}"#
+        );
+        assert!(serde_json::from_str::<MshImportPolicyV1>(&raw).is_err());
+    }
+}
+
+#[test]
+fn external_msh_skew_preserves_original_cell_orientation_and_analytic_area() {
+    use eqiora_meshing::{GeometryMap, MeshGeometry};
+    // (x,y) -> (2x+y,3y), determinant 6; two unit-reference triangles
+    // each therefore have physical area 3. No Eqiora-derived oracle is stored.
+    let vertices = vec![[0., 0.], [2., 0.], [3., 3.], [1., 3.]];
+    let geometry = CanonicalGeometryV1::from_region(
+        &PlanarRegion::new(
+            vertices.clone(),
+            vec![PlanarFace::new(vec![0, 1, 2, 3], vec![])],
+            vec![
+                NamedEntitySet::new("body", 2, vec![0]),
+                NamedEntitySet::new("outer", 1, vec![0, 1, 2, 3]),
+            ],
+            1e-12,
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let source = String::from_utf8(SQUARE.to_vec())
+        .unwrap()
+        .replace("1 0 0\n1 1 0\n0 1 0", "2 0 0\n3 3 0\n1 3 0")
+        .replace("1 1 2 3", "1 2 3 1");
+    let owner =
+        AuthenticatedCommonMesh::import_msh41(geometry, policy(4, 4096), source.into_bytes())
+            .unwrap();
+    let mesh = owner.simplicial_mesh().unwrap().mesh();
+    assert_eq!(
+        mesh.vertices(),
+        vertices.iter().map(|v| v.to_vec()).collect::<Vec<_>>()
+    );
+    assert_eq!(mesh.cells(), [vec![1, 2, 0], vec![0, 2, 3]]);
+    let mut area = 0.;
+    for cell in 0..2 {
+        let map = mesh.geometry_map(MeshEntity::new(2, cell)).unwrap();
+        let mut jacobian = [0.; 4];
+        map.jacobian_at(&[0.25, 0.25], &mut jacobian).unwrap();
+        let determinant = jacobian[0] * jacobian[3] - jacobian[1] * jacobian[2];
+        assert_eq!(determinant, 6.);
+        area += determinant / 2.;
+    }
+    assert_eq!(area, 6.);
+    assert_eq!(
+        AuthenticatedCommonMesh::from_bytes(&owner.to_bytes().unwrap()).unwrap(),
+        owner
+    );
+}
+
+#[test]
+fn archived_pre_import_v1_v4_encodings_and_planar_gmsh_acceptance_stay_unchanged() {
+    let lineage = include_bytes!("fixtures/lineage-v1-gmsh4152.json");
+    let production = MeshProductionLineageEnvelopeV1::from_json(lineage).unwrap();
+    assert_eq!(production.canonical_json().unwrap(), lineage);
+    assert_eq!(production.provider_identity(), "eqiora.gmsh-cli");
+    assert!(production.msh_import_policy().is_none());
+    for bytes in [
+        include_bytes!("fixtures/commonmesh-v4-gmsh4152.json").as_slice(),
+        include_bytes!("fixtures/commonmesh-v4-planar-over-facet-policy.json").as_slice(),
+    ] {
+        let owner = AuthenticatedCommonMesh::from_bytes(bytes).unwrap();
+        assert_eq!(owner.to_bytes().unwrap(), bytes);
+        assert_eq!(
+            owner.production().unwrap().provider_identity(),
+            "eqiora.gmsh-cli"
+        );
+        assert!(owner.msh_source_bytes().is_none());
+    }
+    let legacy = AuthenticatedCommonMesh::from_bytes(include_bytes!(
+        "fixtures/commonmesh-v4-planar-over-facet-policy.json"
+    ))
+    .unwrap();
+    assert_eq!(
+        legacy
+            .production()
+            .unwrap()
+            .gmsh_mesh_policy()
+            .unwrap()
+            .maximum_boundary_facets(),
+        8
+    );
+    assert!(
+        AuthenticatedCommonMesh::import_msh41(
+            legacy.geometry().unwrap().clone(),
+            policy(8, 4096),
+            legacy.gmsh_provider_output().unwrap().to_vec()
+        )
+        .is_err()
+    );
 }

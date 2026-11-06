@@ -171,7 +171,7 @@ impl CommonSpatialPlan {
             NativeMeshResources::Cartesian { mesh, .. } => {
                 self.accept_step_on_mesh(mesh.mesh(), mapping, input, fields, nonlinear_iterations)
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 let current_mesh = input
                     .geometry_action

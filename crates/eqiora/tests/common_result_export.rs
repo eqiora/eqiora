@@ -4,7 +4,7 @@ use eqiora::api::{
     ModelDocument, XdmfHdf5ExportLimits, export_common_result_xdmf_hdf5,
     export_common_trajectory_xdmf_hdf5,
 };
-use eqiora::artifact::{GmshMeshPolicyV1, ModelEnvelope};
+use eqiora::artifact::{ModelEnvelope, MshImportPolicyV1};
 use eqiora::compiler::StaticBindingValue;
 use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet, PlanarFace, PlanarRegion};
 use eqiora::io::hdf5::{Hdf5DatasetRequest, Hdf5FileImage, Hdf5ResolvedValues, Hdf5ScalarType};
@@ -105,9 +105,9 @@ fn resolve(
     let mesh = format!(
         "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 5 1 5\n2 1 0 5\n1\n2\n3\n4\n5\n0 0 0\n{width} 0 0\n{width} {width} 0\n0 {width} 0\n{half} {half} 0\n$EndNodes\n$Elements\n1 4 1 4\n2 1 2 4\n1 1 2 5\n2 2 3 5\n3 3 4 5\n4 4 1 5\n$EndElements\n"
     );
-    let mesh = AuthenticatedCommonMesh::gmsh_4152(
+    let mesh = AuthenticatedCommonMesh::import_msh41(
         geometry,
-        GmshMeshPolicyV1::explicit(1e-12, 0.01, 8, 5.).unwrap(),
+        MshImportPolicyV1::metres(0.01, 8, 16 * 1024 * 1024).unwrap(),
         mesh.into_bytes(),
     )
     .unwrap()

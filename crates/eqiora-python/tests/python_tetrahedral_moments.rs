@@ -1,7 +1,7 @@
 mod support;
 use support::public_module;
 
-use eqiora::artifact::{GmshMeshPolicyV1, ModelEnvelope};
+use eqiora::artifact::{ModelEnvelope, MshImportPolicyV1};
 use eqiora::compiler::{CompiledModel, StaticBindingValue};
 use eqiora::geometry::{CanonicalGeometryV1, NamedEntitySet};
 use eqiora::graph::{GraphStore, InMemoryGraphStore};
@@ -117,9 +117,9 @@ fn fixture(face: bool, complex: bool, permuted: bool) -> (Vec<u8>, Vec<u8>, Stri
     let msh = format!(
         "$MeshFormat\n4.1 0 8\n$EndMeshFormat\n$Nodes\n1 4 1 4\n3 1 0 4\n1\n2\n3\n4\n0 0 0\n2 0 0\n0 3 0\n0 0 4\n$EndNodes\n$Elements\n1 1 1 1\n3 1 4 1\n1 {cell}\n$EndElements\n"
     );
-    let mesh = AuthenticatedCommonMesh::gmsh_4152(
+    let mesh = AuthenticatedCommonMesh::import_msh41(
         geometry,
-        GmshMeshPolicyV1::explicit(1e-12, 0.01, 8, 5.).unwrap(),
+        MshImportPolicyV1::metres(0.01, 8, 16 * 1024 * 1024).unwrap(),
         msh.into_bytes(),
     )
     .unwrap();

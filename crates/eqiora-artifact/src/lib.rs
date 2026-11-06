@@ -88,7 +88,7 @@ mod execution_encoding;
 pub use mesh::{MeshDecoderLimits, SimplicialMeshEnvelopeV1};
 pub use mesh_production_lineage::{
     AffineTriangleMeshPolicy, CartesianMeshCellsV2, GmshMeshPolicyV1,
-    MeshProductionLineageEnvelopeV1,
+    MeshProductionLineageEnvelopeV1, MshImportPolicyV1,
 };
 pub use mesh_revision_overlap::MeshRevisionOverlapEnvelopeV1;
 pub use model::{ModelDecoderLimits, WireValueLiteral};

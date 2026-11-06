@@ -85,7 +85,7 @@ impl CommonSpatialPlan {
         &self,
         state: Option<&CommonState>,
     ) -> Result<Vec<Vec<f64>>, Diagnostic> {
-        let (NativeMeshResources::GmshSimplicial { mesh, .. }
+        let (NativeMeshResources::MshSimplicial { mesh, .. }
         | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) = self.admission.resources()
         else {
             return Err(invalid(

@@ -13,14 +13,17 @@ observation path. Both dimensions enforce the requested boundary-facet budget.
 Unsupported geometry, cells, units and incomplete boundary coverage reject with
 a diagnostic before a Mesh is published.
 
+Rust requests use `MshImportPolicyV1::metres(...)`; Python requires
+`coordinate_unit="m"`. The serialized unit discriminator stays private.
 Coordinates require an explicit unit declaration. The first profile accepts
-metres; it never infers units from Geometry or guesses a scale. Quality and work
-limits have defaults with explicit overrides. Geometry authoring is separate.
+metres; it never infers units from Geometry or guesses a scale. Quality, boundary-facet and source-byte limits have defaults with explicit
+overrides. Fixed parser count and decoded-memory/work ceilings also apply. Geometry authoring is separate.
 
 ## Source identity and persistence decision
 
 External import has its own private provider identity and effective import
-policy. It retains the bytes needed for parser and correspondence replay in the
+policy. The provider version `4.1` identifies the MSH format profile, not an
+executable release. It retains the bytes needed for parser and correspondence replay in the
 existing common Mesh envelope. It does not add another artifact registry.
 
 The existing Gmsh observation path retains its current identity and behavior.
@@ -31,9 +34,11 @@ Synthetic byte fixtures must use external import instead of claiming CLI origin.
 
 Adding a distinct origin, policy and common Mesh kind must preserve the meaning
 and canonical encoding of existing lineage v1 and common Mesh v4 occurrences.
-The planned additive encoding therefore does not reinterpret old bytes or need
-an epoch change. Imported occurrences cannot decode as Gmsh occurrences, and
-replay rejects changed source, unit, policy or accepted resources. A change that
+The additive encoding preserves omission and field order for old kinds; it does
+not reinterpret old bytes or need an epoch change. Older readers reject the new
+kind; forward compatibility is not claimed. Imported occurrences cannot decode as Gmsh occurrences, and
+replay rejects inconsistent source, unit, policy or accepted-resource substitutions.
+A coherent valid new source or policy is a new occurrence with its own identity. A change that
 cannot preserve those existing semantics requires revisiting this decision
 before implementation.
 

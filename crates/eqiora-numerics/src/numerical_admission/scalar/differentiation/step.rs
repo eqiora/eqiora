@@ -279,7 +279,7 @@ where
             NativeMeshResources::Cartesian { mesh, .. } => {
                 coordinates.prepare_assembly(mesh.mesh(), input)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 coordinates.prepare_assembly(mesh.mesh(), input)?
             }
@@ -317,7 +317,7 @@ where
             NativeMeshResources::Cartesian { mesh, .. } => {
                 coordinates.prepare_assembly(mesh.mesh(), input)?
             }
-            NativeMeshResources::GmshSimplicial { mesh, .. }
+            NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. } => {
                 coordinates.prepare_assembly(mesh.mesh(), input)?
             }
