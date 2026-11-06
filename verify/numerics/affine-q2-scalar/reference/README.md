@@ -172,11 +172,16 @@ norm solve error and B0=B1/sqrt(lambda) bounds the L2 solve error.
 Solve error, norm integration uncertainty and reference enclosure uncertainty
 together must be <=1e-3 E_j(a_g) at every level. This gives the two-level rate
 uncertainty bound log2(1.001/0.999). No absolute endpoint tolerance is inferred
-from these reference values. A higher-order quadrature norm audit must compare to
-the exact-integral quadratic norm for the full coefficient vector; agreement of
-two floating point quadrature orders alone is not an integration bound. The
-production quadrature choice and general selection path remain to be reviewed and
-frozen before any candidate run.
+from these reference values. Before candidate execution, the norm protocol was
+changed from a sampled higher-order Gauss audit to certified exact integration:
+the full rational mass/stiffness matrices and analytic sine cross-integrals
+enclose both continuous norms for any complete coefficient vector. Their interval
+widths remain in the same 1e-3 uncertainty budget. This checks edge, face and cell
+modes without sampling or projecting onto sine amplitudes, so a separate sampled
+norm audit is unnecessary. Agreement of two floating point quadrature orders
+alone would not provide this integration bound. The separate 1% production-load
+quadrature budget is unchanged. Production quadrature selection still requires
+review and freezing before any candidate run.
 
 ## Full physical coefficient comparator
 
