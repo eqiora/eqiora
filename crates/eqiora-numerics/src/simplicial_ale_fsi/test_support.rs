@@ -90,8 +90,13 @@ pub(super) fn motion<const D: usize>(
     partition: &FixedReferenceFsiPartition<D>,
     solver: LinearSolveRequest<'static>,
 ) -> P1HarmonicMeshMotionAction<D> {
-    P1HarmonicMeshMotionAction::new(mesh, partition, motion_policy(solver.plan()), solver)
-        .expect("ALE fixture motion seals")
+    P1HarmonicMeshMotionAction::new(
+        mesh,
+        partition,
+        motion_policy(solver.plan().clone()),
+        solver,
+    )
+    .expect("ALE fixture motion seals")
 }
 
 pub(super) fn material<const D: usize>() -> FixedReferenceFsiMaterial<D> {
@@ -158,7 +163,7 @@ pub(super) fn motion_for_plan<const D: usize>(
             .conserving_connection()
             .unwrap()],
         AleGeometryQualityGate::new(0.001).expect("valid ALE fixture quality gate"),
-        solver.plan(),
+        solver.plan().clone(),
     )
     .expect("valid model-bound ALE motion policy");
     P1HarmonicMeshMotionAction::new(mesh, partition, policy, solver)
@@ -326,7 +331,7 @@ pub(super) fn geometry_graph<const D: usize>(
         eqiora_solver::LinearOperatorProperties::General,
         eqiora_core::ScalarType::F64,
         VectorLayoutKind::Replicated,
-        plan.linear_solver(),
+        plan.linear_solver().clone(),
         Some(plan.nonlinear()),
         plan.target(),
         ExecutionSchedule::Offline,
@@ -484,5 +489,5 @@ pub(super) fn harmonic_solver() -> LinearSolveRequest<'static> {
         NonZeroUsize::new(500).unwrap(),
     )
     .unwrap();
-    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan)
+    LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone())
 }

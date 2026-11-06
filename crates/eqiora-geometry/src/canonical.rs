@@ -498,6 +498,20 @@ impl CanonicalGeometryV1 {
         }
     }
 
+    /// Exact axis bounds retained by a planar primitive with a rectangular exterior.
+    /// No bounds are inferred from a mesh or approximated from curved edges.
+    #[must_use]
+    pub const fn planar_axis_bounds(&self) -> Option<&[[f64; 2]; 2]> {
+        match &self.kind {
+            CanonicalGeometryKind::PlanarRectangleV2(geometry) => Some(geometry.bounds()),
+            CanonicalGeometryKind::CircularHolePlanar(geometry) => Some(geometry.bounds()),
+            CanonicalGeometryKind::PlanarAdjacentRectanglePartitionV1(geometry) => {
+                Some(geometry.bounds())
+            }
+            _ => None,
+        }
+    }
+
     /// Exact Cartesian bounds for the classification-free rectangle kind.
     #[must_use]
     pub const fn planar_rectangle_bounds(&self) -> Option<&[[f64; 2]; 2]> {

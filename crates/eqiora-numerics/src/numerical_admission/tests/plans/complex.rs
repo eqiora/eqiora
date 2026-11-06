@@ -33,7 +33,7 @@ fn complex_spatial_plan_retains_types_exact_solver_and_replay() {
             None,
         )
     };
-    let plan = resolve(CommonSpatialPolicy::Q1, exact).unwrap();
+    let plan = resolve(CommonSpatialPolicy::Q1, exact.clone()).unwrap();
     let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
     let scalar = plan.as_spatial().unwrap();
     assert_eq!(

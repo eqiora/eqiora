@@ -210,7 +210,7 @@ fn compatible_bicgstab_policy_reaches_motion_assembly() {
         NonZeroUsize::new(1_000).expect("positive iteration limit"),
     )
     .unwrap();
-    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan);
-    P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, motion_policy(plan), solver)
+    let solver = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.clone());
+    P1HarmonicMeshMotionAction::<2>::new(&mesh, &partition, motion_policy(plan.clone()), solver)
         .expect("the exact reference BiCGSTAB/SPD/Identity/Reproducible tuple is available");
 }

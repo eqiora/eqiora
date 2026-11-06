@@ -142,7 +142,7 @@ where
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let linear = LinearSolveRequest::new(&checked, self.plan.linear());
+        let linear = LinearSolveRequest::new(&checked, self.plan.linear().clone());
         let (accepted, evidence) = solve_damped_newton(
             seed.to_vec(),
             NewtonOptions::time_stage(
@@ -160,9 +160,12 @@ where
                 )
             },
             |_, point| {
-                point
-                    .assembly
-                    .solve_correction(0, linear, self.plan.admission.linear.workers, None)
+                point.assembly.solve_correction(
+                    0,
+                    linear.clone(),
+                    self.plan.admission.linear.workers,
+                    None,
+                )
             },
             |unknown, current| {
                 let (state, rate) = self.recovery_coordinates(h, fixed, unknown)?;

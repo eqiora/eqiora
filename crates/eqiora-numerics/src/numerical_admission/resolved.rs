@@ -143,11 +143,11 @@ impl ResolvedCommonPlan {
 
     /// Effective linear solve, including implicit finite-time stages.
     #[must_use]
-    pub fn effective_solver(&self) -> Option<SolverPlan> {
+    pub fn effective_solver(&self) -> Option<&SolverPlan> {
         match self {
             Self::Algebraic(plan) => Some(plan.linear()),
             Self::Eigen(_) => None,
-            Self::Time(plan) => plan.as_ode()?.linear.as_ref().map(|linear| linear.solver),
+            Self::Time(plan) => plan.as_ode()?.linear.as_ref().map(|linear| &linear.solver),
             Self::Spatial(plan) => Some(plan.linear()),
             Self::SteadyStokes(plan) => Some(plan.linear()),
             Self::TransientFlow(plan) => Some(plan.linear()),

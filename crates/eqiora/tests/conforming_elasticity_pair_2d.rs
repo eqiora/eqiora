@@ -379,7 +379,7 @@ fn direct_and_packaged_pairs_share_one_monolithic_q1_system_and_interface_oracle
                 &direct_problem
                     .linear_problem()
                     .expect("direct linear problem"),
-                direct_problem.solver_plan(),
+                direct_problem.solver_plan().clone(),
             )
             .unwrap_or_else(|diagnostic| panic!("direct reference solve at {cells}: {diagnostic}"));
         let packaged_solved = REFERENCE_LINEAR_SOLVER
@@ -387,7 +387,7 @@ fn direct_and_packaged_pairs_share_one_monolithic_q1_system_and_interface_oracle
                 &packaged_problem
                     .linear_problem()
                     .expect("packaged linear problem"),
-                packaged_problem.solver_plan(),
+                packaged_problem.solver_plan().clone(),
             )
             .unwrap_or_else(|diagnostic| {
                 panic!("packaged reference solve at {cells}: {diagnostic}")
@@ -616,7 +616,7 @@ fn constrained_interface_endpoint_is_not_mislabeled_as_coupling_equilibrium() {
     let solved = REFERENCE_LINEAR_SOLVER
         .solve(
             &problem.linear_problem().expect("supported linear problem"),
-            problem.solver_plan(),
+            problem.solver_plan().clone(),
         )
         .expect("supported pair solves");
     let solution = problem.finish(solved).expect("supported pair reconstructs");

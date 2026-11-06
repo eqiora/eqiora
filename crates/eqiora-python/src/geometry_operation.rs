@@ -1,9 +1,10 @@
-//! Python projection of the stack-only handle-first planar operation core.
+//! Python projection of the shared handle-first Geometry operation core.
 
 use std::collections::BTreeMap;
 
 use eqiora::geometry::{
-    GeometryGraph, PlanarBoundaryHandle, PlanarOperation, PlanarRegionHandle, PlanarTopologyHandle,
+    GeometryBoundaryHandle, GeometryGraph, GeometryOperation, GeometryRegionHandle,
+    GeometryTopologyHandle,
 };
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -30,7 +31,7 @@ pub(crate) struct PyGeometryGraph {
 )]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PyGeometryOperation {
-    operation: PlanarOperation,
+    operation: GeometryOperation,
 }
 
 #[pyclass(
@@ -42,7 +43,7 @@ pub(crate) struct PyGeometryOperation {
 )]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PyGeometryRegionHandle {
-    handle: PlanarRegionHandle,
+    handle: GeometryRegionHandle,
 }
 
 #[pyclass(
@@ -54,7 +55,7 @@ pub(crate) struct PyGeometryRegionHandle {
 )]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PyGeometryBoundaryHandle {
-    handle: PlanarBoundaryHandle,
+    handle: GeometryBoundaryHandle,
 }
 
 #[pymethods]
@@ -75,6 +76,20 @@ impl PyGeometryGraph {
     ) -> PyResult<PyGeometryOperation> {
         self.graph
             .rectangle(x_bounds, y_bounds)
+            .map(|operation| PyGeometryOperation { operation })
+            .map_err(|diagnostic| validation_error(py, &[diagnostic]))
+    }
+
+    #[pyo3(signature = (*, x_bounds, y_bounds, z_bounds))]
+    fn cuboid(
+        &self,
+        py: Python<'_>,
+        #[pyo3(from_py_with = extract_sequence_pair)] x_bounds: [f64; 2],
+        #[pyo3(from_py_with = extract_sequence_pair)] y_bounds: [f64; 2],
+        #[pyo3(from_py_with = extract_sequence_pair)] z_bounds: [f64; 2],
+    ) -> PyResult<PyGeometryOperation> {
+        self.graph
+            .cuboid(x_bounds, y_bounds, z_bounds)
             .map(|operation| PyGeometryOperation { operation })
             .map_err(|diagnostic| validation_error(py, &[diagnostic]))
     }
@@ -203,7 +218,7 @@ impl PyGeometryGraph {
     ) -> PyResult<Py<PyAny>> {
         if let Ok(operation) = operation.extract::<PyRef<'_, PyGeometryOperation>>() {
             let named_topology = named_topology.ok_or_else(|| {
-                PyTypeError::new_err("planar GeometryOperation build requires named_topology=")
+                PyTypeError::new_err("GeometryOperation build requires named_topology=")
             })?;
             let named_topology = extract_named_topology(named_topology)?;
             return self
@@ -274,7 +289,7 @@ impl PyGeometryBoundaryHandle {
 
 fn extract_named_topology(
     value: &Bound<'_, PyAny>,
-) -> PyResult<BTreeMap<String, Vec<PlanarTopologyHandle>>> {
+) -> PyResult<BTreeMap<String, Vec<GeometryTopologyHandle>>> {
     let mapping = value.cast::<PyMapping>().map_err(|_| {
         PyTypeError::new_err("named_topology must be one mapping from strings to topology handles")
     })?;
@@ -315,7 +330,7 @@ fn extract_named_topology(
     Ok(result)
 }
 
-fn extract_handle(value: &Bound<'_, PyAny>) -> Option<PlanarTopologyHandle> {
+fn extract_handle(value: &Bound<'_, PyAny>) -> Option<GeometryTopologyHandle> {
     if let Ok(handle) = value.extract::<PyRef<'_, PyGeometryRegionHandle>>() {
         Some(handle.handle.into())
     } else if let Ok(handle) = value.extract::<PyRef<'_, PyGeometryBoundaryHandle>>() {

@@ -10,7 +10,7 @@ from typing import final, overload
 class GeometryRegionHandle:
     """Handle to a region created by a geometry operation.
 
-    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryRegionHandle``.
+    Authority: ``crates/eqiora-python/src/geometry_operation.rs::PyGeometryRegionHandle``.
     """
 
     @property
@@ -21,7 +21,7 @@ class GeometryRegionHandle:
 class GeometryBoundaryHandle:
     """Handle to a boundary created by a geometry operation.
 
-    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryBoundaryHandle``.
+    Authority: ``crates/eqiora-python/src/geometry_operation.rs::PyGeometryBoundaryHandle``.
     """
 
     @property
@@ -35,9 +35,10 @@ class GeometryOperation:
     ``boundaries`` are listed in construction order: an interval returns
     ``(lower, upper)``, a rectangle returns
     ``(x_lower, x_upper, y_lower, y_upper)``, a circle returns its sole curve,
+    a cuboid returns ``(x_lower, x_upper, y_lower, y_upper, z_lower, z_upper)``,
     and subtract returns the four outer boundaries followed by the created cut.
 
-    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryOperation``.
+    Authority: ``crates/eqiora-python/src/geometry_operation.rs::PyGeometryOperation``.
     """
 
     @property
@@ -50,7 +51,7 @@ class GeometryOperation:
 class GeometryGraph:
     """Builder for Cartesian, planar, and solid geometry.
 
-    Authority: ``crates/eqiora-python/src/planar_operation.rs::PyGeometryGraph``.
+    Authority: ``crates/eqiora-python/src/geometry_operation.rs::PyGeometryGraph``.
     """
 
     def __init__(self) -> None: ...
@@ -64,6 +65,13 @@ class GeometryGraph:
         *,
         x_bounds: tuple[float, float],
         y_bounds: tuple[float, float],
+    ) -> GeometryOperation: ...
+    def cuboid(
+        self,
+        *,
+        x_bounds: tuple[float, float],
+        y_bounds: tuple[float, float],
+        z_bounds: tuple[float, float],
     ) -> GeometryOperation: ...
     def circle(
         self,

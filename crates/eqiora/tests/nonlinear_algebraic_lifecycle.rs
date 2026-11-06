@@ -231,7 +231,7 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
             &accepted,
             &[1.0],
             LinearOperatorProperties::General,
-            LinearSolveRequest::new(&FaerLinearSolver, plan.linear()),
+            LinearSolveRequest::new(&FaerLinearSolver, plan.linear().clone()),
         )
         .unwrap();
         let (_, tangent) = forward.into_parts();
@@ -239,7 +239,7 @@ fn accepted_finite_point_separates_residual_partials_and_reduced_output_actions(
             &accepted,
             &[1.0],
             LinearOperatorProperties::General,
-            LinearSolveRequest::new(&FaerLinearSolver, plan.linear()),
+            LinearSolveRequest::new(&FaerLinearSolver, plan.linear().clone()),
         )
         .unwrap();
         let (_, gradient) = reverse.into_parts();

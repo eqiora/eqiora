@@ -102,10 +102,9 @@ impl SolverSelection {
                 Ok(SolverCandidate::<S> {
                     id,
                     evidence_case: expected.evidence_case,
-                    plan: catalog_plan(
-                        expected.algorithm,
-                        expected.preconditioner,
-                        expected.reduction,
+                    plan: catalog_plan_for_profile(
+                        &profile,
+                        expected,
                         relative_tolerance,
                         absolute_tolerance,
                         maximum_iterations,
@@ -130,7 +129,7 @@ impl SolverSelection {
             objective,
             candidate_id: resolved.selected.id(),
             evidence_case: resolved.selected.evidence_case(),
-            plan: resolved.selected.plan(),
+            plan: resolved.selected.plan().clone(),
             provider: resolved.solver_provider,
             capabilities: resolved
                 .selected
@@ -187,7 +186,7 @@ impl SolverSelection {
         ) {
             return Err(invalid_catalog("host-binding.host-execution-required"));
         }
-        let candidates = catalog_ids(S::DOMAIN, profile.facts.properties)
+        let candidates = profile_catalog_ids(S::DOMAIN, &profile)
             .iter()
             .map(|id| {
                 let expected = expected_candidate(id);
@@ -201,10 +200,9 @@ impl SolverSelection {
                 Ok(SolverCandidate::planned(
                     id,
                     expected.evidence_case,
-                    catalog_plan(
-                        expected.algorithm,
-                        expected.preconditioner,
-                        expected.reduction,
+                    catalog_plan_for_profile(
+                        &profile,
+                        expected,
                         relative_tolerance,
                         absolute_tolerance,
                         maximum_iterations,
@@ -249,7 +247,7 @@ impl SolverSelection {
             return Err(invalid_catalog("host-binding.selected-provider-mismatch"));
         }
         self.require_problem(problem, structure)?;
-        LinearSolveRequest::new(backend, self.plan).solve(problem)
+        LinearSolveRequest::new(backend, self.plan.clone()).solve(problem)
     }
 
     /// Exact operator and execution facts used during selection.
@@ -273,8 +271,8 @@ impl SolverSelection {
         self.evidence_case
     }
     /// Exact algorithm, preconditioner, reduction and convergence controls.
-    pub const fn solver_plan(&self) -> SolverPlan {
-        self.plan
+    pub const fn solver_plan(&self) -> &SolverPlan {
+        &self.plan
     }
     /// Exact selected solver provider release.
     pub const fn solver_provider(&self) -> SolverProvider {
@@ -319,10 +317,10 @@ impl SolverSelection {
             return Err(invalid_catalog("profile.scalar-mismatch"));
         }
         self.profile.require_structure(structure)?;
-        self.profile.require_plan(self.plan)?;
+        self.profile.require_plan(&self.plan)?;
         self.profile.require_problem(problem)?;
         self.profile
-            .require_problem_resources(self.plan, self.provider, problem)
+            .require_problem_resources(&self.plan, self.provider, problem)
     }
 }
 
@@ -330,6 +328,20 @@ pub(super) fn profile_catalog_ids(
     domain: ScalarDomain,
     profile: &SolverPlanningProfile,
 ) -> &'static [&'static str] {
+    if matches!(
+        profile.requested_preconditioner(),
+        Some(PreconditionerPolicy::UpperDiagonalSchur(_))
+    ) {
+        return if domain == ScalarDomain::Real && profile.is_serial() {
+            match profile.facts.properties {
+                LinearOperatorProperties::General => &[FAER_SCHUR_GENERAL_ID],
+                LinearOperatorProperties::SymmetricIndefinite => &[FAER_SCHUR_INDEFINITE_ID],
+                _ => &[],
+            }
+        } else {
+            &[]
+        };
+    }
     match profile.execution.topology() {
         crate::ExecutionTopology::Host { .. } => catalog_ids(domain, profile.facts.properties),
         crate::ExecutionTopology::Cuda { .. } if domain == ScalarDomain::Real => {

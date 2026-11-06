@@ -1,11 +1,12 @@
-# Two-dimensional Poisson comparison protocol
+# Poisson comparison protocol
 
 This protocol is declared before numerical or timing observations. It scopes
 one part of the external comparison in #1739. It establishes no result or
-performance claim yet. Three-dimensional Poisson, elasticity, cylinder flow,
-MPI and GPU comparisons remain outside this slice.
+performance claim yet. The default is the established 2D comparison; the
+3D extension below uses the same correctness and measurement path. Elasticity,
+cylinder flow, MPI and GPU comparisons remain outside this slice.
 
-## Same mathematical problem
+## Two-dimensional mathematical problem
 
 On the unit square, with numeric coordinates in metres, solve
 `-Delta(u) = 2*pi^2*sin(pi*x)*sin(pi*y)`, with zero value on the whole boundary.
@@ -193,7 +194,7 @@ field hex files are retained before the accuracy gate, including rejected
 candidates. `summary.json` is written only after both tools pass every requested
 level and convergence. Correctness-only mode publishes no execution timing table.
 
-The six standalone analytic/admission checks need NumPy but neither native tool:
+The standalone analytic/admission checks need NumPy but neither native tool:
 
 ```bash
 TMPDIR="$scratch/tmp" "$scratch/eqiora/bin/python" -m unittest discover \
@@ -299,3 +300,103 @@ TMPDIR="$scratch/tmp" python3 -m unittest discover \
 - [PETSc residual norm selection](https://petsc.org/release/manualpages/KSP/KSPSetNormType/)
 
 - [PETSc BiCGStab (`bcgs`)](https://petsc.org/release/manualpages/KSP/KSPBCGS/)
+
+## Three-dimensional comparison
+
+The next comparison uses the unit cube, continuous hexahedral Q1 elements,
+`u = sin(pi*x)*sin(pi*y)*sin(pi*z)`, forcing `3*pi^2*u`, and zero values on
+all six faces. The declared levels are 4, 8 and 16 cells per axis. It reuses
+this harness, solver controls and operation boundaries. The independent
+[3D reference](../../../verify/numerics/cartesian-poisson-3d-fem-fvm/README.md)
+owns the analytic continuous errors and comparison allowance.
+
+Use `--dimension 3 --levels 4 8 16 --mode correctness-only` for a smoke or
+`--mode benchmark` for the declared timing campaign with the existing `run.py`
+command. New reports and candidate fields retain the dimension
+explicitly. The default `--dimension 2` retains the four existing 2D levels.
+For 3D, the worker requires the ordinary public `GeometryGraph.cuboid` API and
+a development wheel containing it. It uses `poisson_3d.eqi` through the same
+compile, resolve and Run entry points as the 2D worker.
+
+The external worker explicitly creates hexahedra and checks the actual eight
+Basix tensor Gauss points, each with weight `1/8`, using the existing eight-ULP
+quadrature conformance budget. It requires `(N+1)^3` scalar vertex DOFs and
+`(N+1)^3-(N-1)^3` boundary DOFs. Topological vertex/DOF export and the zero
+boundary row/column checks apply in all three axes. Both tools use the same
+BiCGStab/identity, zero-start, one-worker real binary64 policy and existing
+true-residual controls. The dimension-general inherited allowance comes from
+the registered Cartesian reference owner; it is not fitted to either tool.
+The exported primal Q1 field is integrated with eight error points per axis,
+and every consecutive error pair must decrease with order greater than 1.9.
+
+Ordinary public 3D geometry admission, actual quadrature, vertex/DOF export,
+accuracy and convergence must all pass before reporting a complete comparison.
+The separate native reference case also checks global balance; this comparison
+reports its field-error and solver-policy gates. Qualified runtime measurements
+remain pending; no 3D speed claim is made.
+
+## Three-dimensional timing protocol
+
+This protocol was declared before enabling 3D benchmark mode or observing its
+timings. It uses the same mathematical controls, independent reference,
+measurement boundaries and memory scopes above. Only the declared 4, 8 and 16
+levels are supported. The current installed wheel must first pass both tools'
+correctness checks at those levels, and its retained producer record must show
+the actual optimized build. Keep the wheel's producer revision separate from
+the harness revision; a declared build-profile argument is not authentication.
+
+The ordinary external comparison is one complete campaign: a fresh process and
+fresh JIT cache for each tool at each level, alternating tool order by level.
+Each process retains one cold execution, one separate diagnostic execution,
+two uninstrumented warmups and seven uninstrumented samples. This is six child
+processes, not the eighteen-campaign baseline/candidate protocol of
+`run_matched.py`. Its seven calls describe within-process spread; they are not
+seven independent process repetitions. Reuse no numerical matrix or Result.
+
+Accuracy and solver-policy checks precede the warmup/sample loop. Required
+assembly and linear-solve diagnostic spans must be present; missing telemetry
+rejects benchmark mode without a subtraction-based replacement. Retain every
+raw sample, cold/preparation/import observation, memory snapshot and failure.
+Report median, range, MAD and process CPU alongside wall time. Internal phase
+definitions remain tool-native: publish no cross-tool phase ratios and do not
+subtract inclusive spans into an invented phase.
+
+Before launch, inspect the selected CPU and its SMT siblings, record thread
+placement, host load and controls, and use a separate physical core for any
+outer supervisor. Keep one worker/thread and one MPI rank, with GPU hidden.
+Do not change global settings or apply an arbitrary utilization pass cutoff.
+The primary measurement supervisor chooses the CPU and retains its monitoring
+records. A failed campaign remains an incomplete attempt; do not select a faster
+retry or stop after a favorable sample. Any additional campaign budget must be
+declared before its observations. Shared-host results remain descriptive and
+establish no stable baseline, general solver ranking or #802 performance target.
+
+After the source, installed artifacts and CPU controls have been reviewed, run
+the ordinary driver below under the approved outer monitoring supervisor. Set
+`EQIORA_WHEEL_REVISION` and `EQIORA_BUILD_PROFILE` from the retained producer
+record, even when the harness has a newer revision. The output directory must be
+new; the command does not choose a quiet core or establish reference conditions.
+
+```bash
+TMPDIR="$scratch/tmp" "$EQIORA_PYTHON" \
+  tools/benchmarks/poisson_fenicsx/run.py "$scratch/benchmark-3d" \
+  --eqiora-python "$EQIORA_PYTHON" --fenicsx-python "$FENICSX_PYTHON" \
+  --eqiora-wheel "$EQIORA_WHEEL" --eqiora-revision "$EQIORA_WHEEL_REVISION" \
+  --eqiora-build-profile "$EQIORA_BUILD_PROFILE" \
+  --dimension 3 --levels 4 8 16 --mode benchmark --cpu "$COMPARE_CPU"
+```
+
+The measurement tests use independent analytic fields and synthetic clocks to
+check ordering, sample summaries and rejection before warm sampling. They run
+neither native tool and collect no performance observations:
+
+```bash
+TMPDIR="$scratch/tmp" python3 -m unittest discover \
+  -s tools/benchmarks/poisson_fenicsx -p test_benchmark.py -v
+```
+
+The current harness requires matching installed Python APIs for every supplied
+revision. In particular, solver observations now return complete preconditioner
+values and this harness reads their `kind`. Reproduce historical measurements
+with their recorded harness revision and matching wheels. The current harness
+does not adapt older APIs, and recorded measurements are not rewritten.

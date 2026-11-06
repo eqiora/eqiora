@@ -5,9 +5,12 @@ import json
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import eqiora
 import numpy as np
-from common import ROOT, ComparisonError, clock, digest, environment, finish, memory, worker_arguments
+from shared_measurement import ROOT, ComparisonError, clock, digest, environment, finish, memory
+from worker_arguments import worker_arguments
+from accuracy import check_accuracy
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
 
 
@@ -16,30 +19,36 @@ def main(args):
         raise ComparisonError("Eqiora requires wheel path, declared build revision and build profile")
     if Path(eqiora.__file__).resolve().is_relative_to(ROOT):
         raise ComparisonError("use an installed wheel, not repository Python source")
-    env = environment("eqiora", IMPORT_SECONDS)
+    env = environment("eqiora", IMPORT_SECONDS, protocol_root=Path(__file__).parent)
     env.update(wheel_sha256=digest(args.wheel), source_revision_declared=args.revision,
                rust_build_profile_declared=args.build_profile, module_path=eqiora.__file__,
                blas=np.show_config(mode="dicts"))
     baseline = memory()
 
+    dimension = args.dimension
+    region = "square" if dimension == 2 else "cube"
+
     def mesh_setup():
         graph = eqiora.geometry.GeometryGraph()
-        rectangle = graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
-        names = ("x_lower", "x_upper", "y_lower", "y_upper")
-        geometry = graph.build(rectangle, named_topology={"square": rectangle.region,
-            **dict(zip(names, rectangle.boundaries, strict=True))})
+        primitive = (graph.rectangle(x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0))
+                     if dimension == 2 else graph.cuboid(
+                         x_bounds=(0.0, 1.0), y_bounds=(0.0, 1.0), z_bounds=(0.0, 1.0)))
+        names = tuple(f"{axis}_{side}" for axis in "xyz"[:dimension] for side in ("lower", "upper"))
+        geometry = graph.build(primitive, named_topology={region: primitive.region,
+            **dict(zip(names, primitive.boundaries, strict=True))})
         mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
-            geometry, eqiora.meshing.CartesianMesher(cells=(args.cells, args.cells))))
+            geometry, eqiora.meshing.CartesianMesher(cells=(args.cells,)*dimension)))
         return geometry, mesh, names
 
     (geometry, mesh, names), mesh_time = clock(mesh_setup)
-    source = ROOT / "examples/inverse-poisson.eqi"
+    source = (ROOT / "examples/inverse-poisson.eqi" if dimension == 2
+              else Path(__file__).with_name("poisson_3d.eqi"))
 
     def prepare():
-        model = eqiora.compile(path=source, geometry=geometry, entry="InversePoisson", bindings={
-            "square": geometry.selection("square"),
-            **{name: (geometry.selection(name), geometry.selection("square")) for name in names},
-            "diffusion": 1.0, "wave_number": np.pi, "source_scale": 2*np.pi**2, "boundary_offset": 0.0})
+        model = eqiora.compile(path=source, geometry=geometry, entry="InversePoisson" if dimension == 2 else "PoissonCube", bindings={
+            region: geometry.selection(region),
+            **{name: (geometry.selection(name), geometry.selection(region)) for name in names},
+            "diffusion": 1.0, "wave_number": np.pi, "source_scale": dimension*np.pi**2, "boundary_offset": 0.0})
         plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q1(), solve=eqiora.solve.Linear(
             algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
             preconditioner=eqiora.solve.Preconditioner.Identity, reduction=eqiora.solve.Reduction.Reproducible,
@@ -58,9 +67,10 @@ def main(args):
 
     def extract(result):
         summary = result.solve
-        fields = ("algorithm", "preconditioner", "completed_iterations", "initial_residual_norm",
+        fields = ("algorithm", "completed_iterations", "initial_residual_norm",
                   "reported_residual_norm", "true_residual_norm", "residual_target")
         solve = {name: getattr(summary, name) for name in fields}
+        solve["preconditioner"] = summary.preconditioner.kind
         for name in ("backend", "adapter", "verification_adapter", "reduction",
                      "relative_tolerance", "absolute_tolerance", "maximum_iterations"):
             solve[name] = getattr(summary, name)
@@ -90,8 +100,9 @@ def main(args):
               "mesh_measurement": mesh_time, "preparation_measurement": preparation,
               "model_sha256": digest(source), "plan_sha256": digest_bytes(plan.to_bytes()),
               "package_compilation_digest": model.package_compilation_digest,
-              "dofs": {"total": (args.cells+1)**2, "free": (args.cells-1)**2, "stored_algebraic": (args.cells-1)**2}}
-    finish(args, "eqiora", report, lambda: eqiora.run(plan), extract, profile)
+              "dofs": {"total": (args.cells+1)**dimension, "free": (args.cells-1)**dimension, "stored_algebraic": (args.cells-1)**dimension}}
+    finish(args, "eqiora", report, lambda: eqiora.run(plan), extract, profile,
+           accuracy=lambda coordinates, values, cells: check_accuracy(coordinates, values, cells, args.dimension))
 
 
 def digest_bytes(value):

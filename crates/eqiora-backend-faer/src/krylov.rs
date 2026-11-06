@@ -16,10 +16,15 @@ impl<S: Scalar + ComplexFloat<Real = f64> + ComplexField<Real = f64> + Sync> Kry
 
 pub(super) fn inverse_diagonal<S: KrylovScalar>(
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<Option<Vec<S>>, Diagnostic> {
-    if plan.preconditioner() == PreconditionerPolicy::Identity {
+    if plan.preconditioner() == &PreconditionerPolicy::Identity {
         return Ok(None);
+    }
+    if !matches!(plan.preconditioner(), PreconditionerPolicy::Jacobi) {
+        return Err(invalid_realization(
+            "diagonal preparation requires Identity or Jacobi policy",
+        ));
     }
     let mut diagonal = vec![S::zero(); problem.operator().rows()];
     if problem.operator().diagonal(&mut diagonal)? == DiagonalAvailability::Unavailable {

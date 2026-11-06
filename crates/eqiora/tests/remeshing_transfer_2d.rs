@@ -29,7 +29,8 @@ fn cpu_reference_closes_remesh_target_continuation_and_trajectory_replay() {
 
 #[test]
 fn bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
-    let base = transfer_plan().solver();
+    let binding = transfer_plan();
+    let base = binding.solver();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         base.relative_tolerance(),
@@ -37,7 +38,7 @@ fn bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
         base.maximum_iterations(),
     )
     .unwrap()
-    .with_preconditioner(base.preconditioner())
+    .with_preconditioner(base.preconditioner().clone())
     .with_reduction(base.reduction());
     run_remesh_target_continuation_and_replay(
         &REFERENCE_LINEAR_SOLVER,
@@ -47,7 +48,8 @@ fn bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
 
 #[test]
 fn faer_bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
-    let base = transfer_plan().solver();
+    let binding = transfer_plan();
+    let base = binding.solver();
     let plan = SolverPlan::new(
         LinearSolver::BiConjugateGradientStabilized,
         base.relative_tolerance(),
@@ -55,14 +57,15 @@ fn faer_bicgstab_closes_remesh_target_continuation_and_trajectory_replay() {
         base.maximum_iterations(),
     )
     .unwrap()
-    .with_preconditioner(base.preconditioner())
+    .with_preconditioner(base.preconditioner().clone())
     .with_reduction(ReductionPolicy::Fast);
     run_remesh_target_continuation_and_replay(&FaerLinearSolver, transfer_plan_with_solver(plan));
 }
 
 #[test]
 fn sparse_lu_closes_remesh_target_continuation_and_trajectory_replay() {
-    let base = transfer_plan().solver();
+    let binding = transfer_plan();
+    let base = binding.solver();
     let plan = SolverPlan::new(
         LinearSolver::SparseLu,
         base.relative_tolerance(),
@@ -70,7 +73,7 @@ fn sparse_lu_closes_remesh_target_continuation_and_trajectory_replay() {
         base.maximum_iterations(),
     )
     .unwrap()
-    .with_preconditioner(base.preconditioner())
+    .with_preconditioner(base.preconditioner().clone())
     .with_reduction(ReductionPolicy::Fast);
     run_remesh_target_continuation_and_replay(&FaerLinearSolver, transfer_plan_with_solver(plan));
 }
@@ -124,7 +127,7 @@ fn run_remesh_target_continuation_and_replay(
         &case.target_mesh,
         &case.target_partition,
         &case.target_boundary,
-        transfer_plan,
+        transfer_plan.clone(),
         &FaerLinearSolver,
         projection_backend,
     )
@@ -186,7 +189,7 @@ fn run_remesh_target_continuation_and_replay(
         source_state,
         &accepted,
         &projection,
-        transfer_plan,
+        transfer_plan.clone(),
         projection_backend,
     );
     let target_trajectory = accepted

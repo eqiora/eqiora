@@ -65,7 +65,7 @@ fn core(a: C, b: C, policy: SolverPlan) -> FinalizedLinearCore<C> {
 
 fn solve(core: &FinalizedLinearCore<C>) -> LinearSolution<C> {
     REFERENCE_LINEAR_SOLVER
-        .solve(&core.linear_problem().unwrap(), core.solver_plan())
+        .solve(&core.linear_problem().unwrap(), core.solver_plan().clone())
         .unwrap()
 }
 

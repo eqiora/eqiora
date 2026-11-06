@@ -437,7 +437,7 @@ where
             source,
             fem_boundary,
             &integration,
-            solver,
+            solver.clone(),
         )?;
         let fvm = solve_scalar_elliptic_cell_fvm(
             &mesh,

@@ -32,7 +32,7 @@ impl Authoring {
             }),
             interfaces.iter().copied(),
             *quality_gate,
-            *solver,
+            solver.clone(),
         )
         .unwrap();
         let current = graph
@@ -266,7 +266,7 @@ fn motion_policy_must_match_the_existing_field_domain_bindings() {
         [(domain, foreign_driver)],
         input.motion.interfaces().iter().copied(),
         input.motion.quality_gate(),
-        input.motion.solver(),
+        input.motion.solver().clone(),
     )
     .unwrap();
     assert!(

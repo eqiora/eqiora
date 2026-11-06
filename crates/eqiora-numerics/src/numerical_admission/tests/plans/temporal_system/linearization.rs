@@ -27,7 +27,7 @@ fn exercise<S: Coefficient + Send + Sync>(
         .linear
         .checked_backend(&REFERENCE_LINEAR_SOLVER, Some(&structure))
         .unwrap();
-    let request = LinearSolveRequest::new(&checked, plan.linear());
+    let request = LinearSolveRequest::new(&checked, plan.linear().clone());
     for (current_weight, rate_weight) in [(0., 1.), (0.5, 16.), (1., 2.)] {
         let assembly = system
             .linearize(

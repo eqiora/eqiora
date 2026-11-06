@@ -59,7 +59,7 @@ impl FinalizedSteadyStokesMini2dProblem {
 
     /// Exact solver policy selected by the field-wise Realization.
     #[must_use]
-    pub const fn solver_plan(&self) -> SolverPlan {
+    pub const fn solver_plan(&self) -> &SolverPlan {
         self.inner.solver_plan()
     }
 

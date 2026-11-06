@@ -34,10 +34,10 @@ fn isotropic_bilinear_rhs_has_an_exact_one_step_hermitian_solution() {
                 if method {
                     problem = problem.with_candidate_check(&criterion);
                 }
-                let solved = FaerLinearSolver.solve(&problem, request).unwrap();
+                let solved = FaerLinearSolver.solve(&problem, request.clone()).unwrap();
                 assert_eq!(solved.values(), &X);
                 assert_eq!(solved.report().completed_iterations(), 1);
-                assert_eq!(solved.report().solver_plan(), request);
+                assert_eq!(solved.report().solver_plan(), &request);
                 assert_eq!(solved.report().solver_provider(), FAER_SOLVER_PROVIDER);
                 assert_eq!(solved.report().orientation(), orientation);
                 assert_eq!(solved.report().true_residual_norm(), 0.);
@@ -47,7 +47,7 @@ fn isotropic_bilinear_rhs_has_an_exact_one_step_hermitian_solution() {
                 let reject = |_: &[C]| Ok(false);
                 assert!(
                     FaerLinearSolver
-                        .solve(&problem.with_candidate_check(&reject), request)
+                        .solve(&problem.with_candidate_check(&reject), request.clone())
                         .is_err()
                 );
             }
@@ -77,13 +77,13 @@ fn complex_omega_uses_the_hermitian_least_residual_product() {
     )
     .unwrap()
     .with_reduction(ReductionPolicy::Fast);
-    let first = FaerLinearSolver.solve(&problem, request).unwrap();
+    let first = FaerLinearSolver.solve(&problem, request.clone()).unwrap();
     assert_values(
         first.values(),
         &[C::new(19., -13.) / 30., C::new(17., 1.) / 30.],
     );
     assert_eq!(first.report().completed_iterations(), 1);
-    assert_eq!(first.report().solver_plan(), request);
+    assert_eq!(first.report().solver_plan(), &request);
     assert_eq!(first.report().solver_provider(), FAER_SOLVER_PROVIDER);
     assert!((first.report().true_residual_norm() - (1_f64 / 15.).sqrt()).abs() <= TOLERANCE);
     // The ordinary provider still solves the ORIGINAL problem to its original

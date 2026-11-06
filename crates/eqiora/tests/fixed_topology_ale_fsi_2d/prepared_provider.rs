@@ -38,9 +38,12 @@ fn prepared_sparse_lu_closes_the_ordinary_ale_path_and_matches_cold_execution() 
         .with_preconditioner(PreconditionerPolicy::Identity)
         .with_reduction(ReductionPolicy::Fast);
     assert!(
-        <FaerLinearSolver as LinearSolverBackend<f64>>::prepare_linear(&FaerLinearSolver, plan)
-            .unwrap()
-            .is_some()
+        <FaerLinearSolver as LinearSolverBackend<f64>>::prepare_linear(
+            &FaerLinearSolver,
+            plan.clone()
+        )
+        .unwrap()
+        .is_some()
     );
     let resolved = resolve_fixed_topology_ale_coupled(
         &FixedTopologyAleCoupledRealizationRequest::explicit(

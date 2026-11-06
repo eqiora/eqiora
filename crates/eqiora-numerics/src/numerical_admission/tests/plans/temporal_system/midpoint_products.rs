@@ -247,13 +247,14 @@ fn midpoint_runs_compose_requested_outputs_and_reopen_every_internal_step() {
                     for value in &mut rhs {
                         *value = -*value;
                     }
-                    let tangent = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
-                        .solve_canonical_oriented(
-                            linearization.relation().state_jacobian(),
-                            &rhs,
-                            LinearOperatorOrientation::Normal,
-                        )
-                        .unwrap();
+                    let tangent =
+                        LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear().clone())
+                            .solve_canonical_oriented(
+                                linearization.relation().state_jacobian(),
+                                &rhs,
+                                LinearOperatorOrientation::Normal,
+                            )
+                            .unwrap();
                     let output = step.selected_output();
                     let mut selected = vec![0.; output.output_dimension()];
                     output

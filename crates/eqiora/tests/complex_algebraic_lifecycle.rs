@@ -432,12 +432,12 @@ fn one_finite_point_pairs_complex_field_and_real_loss_outputs() {
         point.linearization().acceptance(),
     )
     .unwrap();
-    let solve = LinearSolveRequest::new(&FaerLinearSolver, plan.linear());
+    let solve = LinearSolveRequest::new(&FaerLinearSolver, plan.linear().clone());
     let forward = forward_output_sensitivity(
         &accepted,
         &[1., 2., -1.],
         LinearOperatorProperties::General,
-        solve,
+        solve.clone(),
     )
     .unwrap();
     close(forward.output_tangent(), &[0.5, -2.5, 32.]);
@@ -1437,12 +1437,12 @@ fn parameter_points_rederive_the_actual_domain_without_changing_solver_controls(
                 linear.acceptance(),
             )
             .unwrap();
-            let solve = LinearSolveRequest::new(backend, plan.linear());
+            let solve = LinearSolveRequest::new(backend, plan.linear().clone());
             let forward = forward_output_sensitivity(
                 &accepted,
                 &[1.],
                 LinearOperatorProperties::General,
-                solve,
+                solve.clone(),
             )
             .unwrap();
             for (actual, expected) in forward.output_tangent().iter().zip(derivative) {

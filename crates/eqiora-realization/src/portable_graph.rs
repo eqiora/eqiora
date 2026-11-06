@@ -420,7 +420,7 @@ impl PlacementRequirementNode {
 }
 
 /// One linear solver role attached to one algebraic system and placement.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LinearSolveNode {
     system: AlgebraicSystemId,
     plan: SolverPlan,
@@ -431,25 +431,25 @@ pub struct LinearSolveNode {
 impl LinearSolveNode {
     /// Algebraic system being solved.
     #[must_use]
-    pub const fn system(self) -> AlgebraicSystemId {
+    pub const fn system(&self) -> AlgebraicSystemId {
         self.system
     }
 
     /// Sole linear-solver policy.
     #[must_use]
-    pub const fn plan(self) -> SolverPlan {
-        self.plan
+    pub const fn plan(&self) -> &SolverPlan {
+        &self.plan
     }
 
     /// Portable compute requirement.
     #[must_use]
-    pub const fn placement(self) -> PlacementRequirementId {
+    pub const fn placement(&self) -> PlacementRequirementId {
         self.placement
     }
 
     /// Deployment scheduling requirement, separate from model time.
     #[must_use]
-    pub const fn schedule(self) -> ExecutionSchedule {
+    pub const fn schedule(&self) -> ExecutionSchedule {
         self.schedule
     }
 }
@@ -676,7 +676,7 @@ impl PortableRealizationGraph {
             }
         }
 
-        let linear = self.linear_solves[0];
+        let linear = &self.linear_solves[0];
         if linear.system != AlgebraicSystemId::new(0)
             || linear.placement != PlacementRequirementId::new(0)
         {

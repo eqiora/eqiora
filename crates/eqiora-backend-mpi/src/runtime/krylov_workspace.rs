@@ -33,7 +33,7 @@ pub(super) struct MinresWorkspace {
 impl KrylovWorkspace {
     pub(super) fn new(
         problem: &DistributedLinearProblem<'_>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         let dimension = problem.right_hand_side().len();
         let mut solution = zeroed(dimension, "distributed Krylov solution")?;
@@ -135,7 +135,7 @@ mod tests {
         )
         .unwrap()
         .with_reduction(ReductionPolicy::Fast);
-        let error = match KrylovWorkspace::new(&problem, plan) {
+        let error = match KrylovWorkspace::new(&problem, &plan) {
             Ok(_) => panic!("MPI workspace unexpectedly admitted sparse LU"),
             Err(error) => error,
         };

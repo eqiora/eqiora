@@ -41,7 +41,7 @@ fn converged_implicit_relation_supports_forward_and_adjoint_sensitivity() {
         &accepted,
         &parameter_tangent,
         LinearOperatorProperties::General,
-        solver,
+        solver.clone(),
     )
     .unwrap();
     assert_eq!(

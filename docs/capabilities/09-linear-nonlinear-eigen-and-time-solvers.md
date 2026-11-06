@@ -21,10 +21,11 @@
 | Reference BiCGSTAB, general/Jacobi | ✅ | ✅ | ⬜ | ⬜ | Deterministic right-preconditioned reference BiCGSTAB with reproducible reductions accepts only after an independent true-residual check, for real and complex systems, with restart and shadow-vector recovery inside the original budget; [`fluid.cartesian-advection-diffusion-fvm-2d`](../../verify/fluid/cartesian-advection-diffusion-fvm-2d/README.md). Not yet: a registered restart/failure case, arbitrary conditioning, device accuracy, scaling. |
 | Additional reference BiCGSTAB tuples | ✅ | ✅ | ⬜ | ⬜ | General/identity and asserted SPD or symmetric-indefinite identity/Jacobi tuples are exact and unit-tested, but do not inherit registered numerical evidence from the general/Jacobi transport case; production preconditioners and performance remain |
 | Exact solver capability tuples | ✅ | ✅ | ✅ | ⬜ | Solver admission records exact algorithm/operator-property/preconditioner/reduction/scalar combinations; reference MINRES accepts real symmetric and complex Hermitian/HPD operators with Identity or Jacobi (Jacobi needs a positive diagonal, which does not prove definiteness). Unimplemented combinations are rejected before any work. |
-| Deterministic host solver planning | ✅ | ✅ | ⬜ | ⬜ | One planner ranks reference and faer solvers by `Robust`, `Fast` or `LowMemory` from proven operator properties (30 real, 28 complex tuples), checks manual choices and keeps the decision through replay; it also selects within an explicit Rayon, CUDA or MPI deployment, without fallback. Not yet: whole-Run timings, LU fill, placement, block or Schur checks; [`numerics.host-serial-solver-planning`](../../verify/numerics/host-serial-solver-planning/README.md), [`numerics.host-serial-solver-planning-private`](../../verify/numerics/host-serial-solver-planning-private/README.md), [`numerics.mpi-distributed`](../../verify/numerics/mpi-distributed/README.md). [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md) |
+| Explicit upper diagonal-Schur preconditioning | ✅ | ✅ | ✅ | ⬜ | Two caller-selected ordered semantic groups use fixed faer sparse-LU factors with real `f64`, normal, host-serial BiCGSTAB/Fast for General or SymmetricIndefinite operators. A registered 54-run manufactured Stokes pilot passes; [policy and limits](#upper-diagonal-schur-policy), [pilot evidence](../../verify/numerics/structured-upper-diagonal-schur/README.md). |
+| Deterministic host solver planning | ✅ | ✅ | ⬜ | ⬜ | One planner ranks reference and faer solvers by `Robust`, `Fast` or `LowMemory` from proven operator properties (30 real, 28 complex tuples), checks manual choices and keeps the decision through replay; it also selects within an explicit Rayon, CUDA or MPI deployment, without fallback. Not yet: whole-Run timings, LU fill, placement or automatic block/Schur selection; [`numerics.host-serial-solver-planning`](../../verify/numerics/host-serial-solver-planning/README.md), [`numerics.host-serial-solver-planning-private`](../../verify/numerics/host-serial-solver-planning-private/README.md), [`numerics.mpi-distributed`](../../verify/numerics/mpi-distributed/README.md). [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md) |
 | Plan a fixed scalar-storage Run workload | ✅ | ✅ | ⬜ | ⬜ | `Plan.for_run` (Rust and Python) plans a fixed linear scalar Q1 backward-Euler Run, forecasting assembly passes and choosing faer sparse LU with one factorization when it pays off; changed schedules are rejected. Not yet: elapsed-time optimality, process memory bounds, arbitrary time dependence. |
 | Exact Realization admission tuples | ✅ | ✅ | ⬜ | ⬜ | Realization admission stores exact (space, layout, capacity, schedule, solver) combinations rather than independent sets; registered cases admit P1 FEM with CG and P0 FVM with BiCGSTAB/Jacobi and reject their untested cross-combination; [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md), [`solid.isotropic-elasticity-2d`](../../verify/solid/isotropic-elasticity-2d/README.md), [RFC 0010](../../rfcs/0010-execution-backend-contracts.md) |
-| Portable typed Realization DAG | ✅ | ✅ | ⬜ | ⬜ | Serial/Rayon scalar, steady field-wise and coupled FSI plans normalize into one typed DAG of identities, transformations, blocks, solve roles and placement, saved with the v5 codec; each finalizer re-checks the claims against its actual lowering; [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md), [`fluid.fieldwise-si-mini-stokes-2d`](../../verify/fluid/fieldwise-si-mini-stokes-2d/README.md), [`fsi.fixed-reference-monolithic-step-2d`](../../verify/fsi/fixed-reference-monolithic-step-2d/README.md), [`artifacts.realization-run-wire`](../../verify/artifacts/realization-run-wire/README.md), [RFC 0058](../../rfcs/0058-portable-realization-and-execution-graphs.md) |
+| Portable typed Realization DAG | ✅ | ✅ | ⬜ | ⬜ | Serial/Rayon scalar, steady field-wise and coupled FSI plans normalize into one typed DAG of identities, transformations, blocks, solve roles and placement, saved with the v6 codec; each finalizer re-checks the claims against its actual lowering; [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md), [`fluid.fieldwise-si-mini-stokes-2d`](../../verify/fluid/fieldwise-si-mini-stokes-2d/README.md), [`fsi.fixed-reference-monolithic-step-2d`](../../verify/fsi/fixed-reference-monolithic-step-2d/README.md), [`artifacts.realization-run-wire`](../../verify/artifacts/realization-run-wire/README.md), [RFC 0058](../../rfcs/0058-portable-realization-and-execution-graphs.md) |
 | Host deployment binding and accepted execution receipt | ✅ | ✅ | ⬜ | ⬜ | Before running, the host adapter checks provider capacity, solver tuple and library versions; an in-memory receipt binds operator, plan, providers and output fingerprint after an Eqiora-owned residual replay, and Run provenance names the libraries used (Rayon 1.12.0, faer 0.24.4). Not yet: a durable receipt format; [`numerics.threaded-cpu`](../../verify/numerics/threaded-cpu/README.md), [`numerics.linear-backends`](../../verify/numerics/linear-backends/README.md), [RFC 0058](../../rfcs/0058-portable-realization-and-execution-graphs.md) |
 | Single-device CUDA deployment binding and accepted execution receipt | ✅ | ✅ | ⬜ | ⬜ | The CUDA adapter binds one device and queue, the finalized operator and plan, provider releases, transfers and waited fences, then verifies on the host; Q1/TPFA and FSI have product tests but no recorded-device replay. Receipts stay in memory. [`fsi.fixed-reference-distributed-cuda-solve-mpi-2d`](../../verify/fsi/fixed-reference-distributed-cuda-solve-mpi-2d/README.md) |
 | Distributed deployment binding and accepted MPI execution receipt | ✅ | ✅ | ⬜ | ⬜ | MPI Poisson and FSI runs bind the process group, 1/2/4 partitions, solver and graph before communication; every rank accepts the gathered solution, and a receipt records outputs and providers. MPI+CUDA delegates only the local matrix action. Not yet: multi-node, distributed Fields, GPU-aware transport, device-resident Krylov, durable receipts, public API; [`numerics.canonical-cartesian-poisson-mpi`](../../verify/numerics/canonical-cartesian-poisson-mpi/README.md), [`fsi.fixed-reference-distributed-solve-mpi-2d`](../../verify/fsi/fixed-reference-distributed-solve-mpi-2d/README.md), [`fsi.fixed-reference-distributed-cuda-solve-mpi-2d`](../../verify/fsi/fixed-reference-distributed-cuda-solve-mpi-2d/README.md), [RFC 0058](../../rfcs/0058-portable-realization-and-execution-graphs.md), [RFC 0061](../../rfcs/0061-mpi-fixed-mesh-fsi.md), [RFC 0063](../../rfcs/0063-mpi-cuda-fixed-mesh-fsi.md) |
@@ -58,3 +59,42 @@
 | Mixed precision | ⬜ | ⬜ | ⬜ | ⬜ | Error-controlled refinement and backend capability negotiation remain |
 | Complex scalar solvers | ✅ | 🟨 | ⬜ | ⬜ | Finite affine complex equations and smooth real-linear Newton systems execute through the common no-Mesh lifecycle, with focused product tests described above. General frequency-domain physics, spatial complex solvers and production-scale execution remain unsupported. |
 
+## Upper diagonal-Schur policy
+
+The caller supplies exactly two ordered groups of semantic Fields and constraint
+multipliers. Retained realized ownership must map them to nonempty, disjoint
+coordinate groups covering the full system. Groups are never inferred. Both
+factor choices must be `SparseLu` from the faer provider (`eqiora.faer`).
+
+For the grouped operator `[[A, C], [D, E]]`, the fixed upper preconditioner is
+`P = [[A, C], [0, E - D diag(A)^-1 C]]`. Its sparse Schur construction requires
+finite nonzero entries on the diagonal of `A`. Explicit entry and scalar-product
+limits bound construction work and retained Schur entries; they do not bound
+factor fill, factor memory or process RSS. Each application uses raw fixed
+factor solves, without an inner iterative solve or RHS-dependent residual
+correction. Outer acceptance still checks the original equations.
+
+`PreconditionerPolicy` owns the complete configuration and is no longer `Copy`;
+`PreconditionerKind` identifies the capability family only. Groups, factor
+choices and limits remain part of Plan and artifact identity. Explicit manual
+intent and ranking over an explicitly supplied composition are supported;
+unconfigured ranking keeps its existing 58 tuples (30 real and 28 complex).
+No default policy acquires groups or a structured composition automatically.
+
+Execution is limited to normal real binary64 host-serial BiCGSTAB with Fast
+reductions and General or SymmetricIndefinite operators. Complex, transpose or
+adjoint, SPD/CG, reproducible reductions, Rayon, MPI and CUDA compositions are
+not admitted. The [ordinary pilot](../../verify/numerics/structured-upper-diagonal-schur/README.md)
+passes as a registered first-party analytic case through the ordinary package
+Model, Plan and Run. It checks direct faer, manual composition and explicitly
+ranked composition across refinements `2,4,8`, lengths `1,2 m` and viscosities
+`0.5,1,2 Pa s`: 54 runs with independent analytic convergence, gauge,
+equilibrium and true-residual checks. The normalized equations are identical
+across this similarity sweep; it supplies no independent conditioning or
+viscosity-robustness evidence. A second physics consumer and performance
+evidence remain absent.
+
+Canonical Plan replay retains the full composition and provider intent. Result
+replay checks gauge-metadata presence and finiteness, not independent numerical
+reauthentication of a changed finite multiplier; the live Run supplies the
+numerical gauge evidence.

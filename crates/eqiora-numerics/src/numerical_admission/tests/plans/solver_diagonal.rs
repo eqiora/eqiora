@@ -21,7 +21,7 @@ fn check_result(result: &crate::CommonResult, preconditioner: PreconditionerPoli
         evidence.algorithm(),
         LinearSolver::BiConjugateGradientStabilized
     );
-    assert_eq!(evidence.preconditioner(), preconditioner);
+    assert_eq!(evidence.preconditioner(), &preconditioner);
     assert_eq!(evidence.reduction(), ReductionPolicy::Reproducible);
     assert_eq!(
         evidence.solver().id(),
@@ -60,7 +60,7 @@ fn jacobi_solver_diagonal_admits_ordinary_steady_spatial_execution_and_reopening
             &model,
             cartesian_box_resources(&geometry, &[4]),
             CommonSpatialPolicy::Q1,
-            CommonSolvePolicy::Linear(request(preconditioner)),
+            CommonSolvePolicy::Linear(request(preconditioner.clone())),
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
@@ -71,7 +71,7 @@ fn jacobi_solver_diagonal_admits_ordinary_steady_spatial_execution_and_reopening
         let plan = resolved.as_spatial().unwrap();
         assert_eq!(
             plan.linear(),
-            request(preconditioner).exact_request().unwrap().0
+            request(preconditioner.clone()).exact_request().unwrap().0
         );
         let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
         // -u''=1, u(0)=u(1)=0 gives u=x(1-x)/2 at these Q1 nodes.
@@ -110,7 +110,7 @@ fn jacobi_solver_diagonal_admits_a_structurally_different_finite_model() {
     for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
         let plan = CommonAlgebraicPlan::resolve(
             &model,
-            CommonSolvePolicy::Linear(request(preconditioner)),
+            CommonSolvePolicy::Linear(request(preconditioner.clone())),
             None,
             &[],
             None,

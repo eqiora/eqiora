@@ -189,7 +189,7 @@ impl ResolvedCommonPlan {
                 let (linear_request, nonlinear) =
                     resolve_spatial_strategy(solve, &spatial, nonlinear_equations)?;
                 let (properties, diagonal, size) = recognized.stationary_solver_facts(
-                    Some(linear_request),
+                    Some(linear_request.clone()),
                     &spatial,
                     &system_scaling,
                     nonlinear,

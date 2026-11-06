@@ -39,7 +39,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
             scalar_domain: ScalarDomain::Real,
             algorithm: LinearSolver::BiConjugateGradientStabilized,
             operator_properties: LinearOperatorProperties::General,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: crate::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         }])
@@ -77,6 +77,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         PLANNING_EVIDENCE,
         iterative_faer
             .plan()
+            .clone()
             .with_preconditioner(PreconditionerPolicy::Jacobi),
         None,
     );
@@ -85,6 +86,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         PLANNING_EVIDENCE,
         reference
             .plan()
+            .clone()
             .with_preconditioner(PreconditionerPolicy::Jacobi),
         Some(reference.request().backend()),
     );
@@ -92,11 +94,11 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         profile.clone(),
         SolverPlanningObjective::Fast,
         &[
-            reference,
-            reference_jacobi,
-            direct,
-            iterative_faer,
-            jacobi_faer,
+            reference.clone(),
+            reference_jacobi.clone(),
+            direct.clone(),
+            iterative_faer.clone(),
+            jacobi_faer.clone(),
         ],
     )
     .unwrap_err();
@@ -118,7 +120,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         SolverCandidate::planned(
             id,
             PLANNING_EVIDENCE,
-            reference.plan(),
+            reference.plan().clone(),
             Some(&backend as &dyn crate::LinearSolverBackend<C>),
         )
     });
@@ -133,11 +135,11 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         ),
         SolverPlanningObjective::Robust,
         &[
-            reference,
-            reference_jacobi,
-            direct,
-            iterative_faer,
-            jacobi_faer,
+            reference.clone(),
+            reference_jacobi.clone(),
+            direct.clone(),
+            iterative_faer.clone(),
+            jacobi_faer.clone(),
         ],
     )
     .unwrap_err();
@@ -147,6 +149,7 @@ pub(super) fn typed_capabilities_and_requested_inventory_precede_ranking() {
         PLANNING_EVIDENCE,
         reference
             .plan()
+            .clone()
             .with_preconditioner(PreconditionerPolicy::Jacobi),
         Some(reference.request().backend()),
     );

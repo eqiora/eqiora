@@ -83,7 +83,7 @@ impl CommonSpatialPlan {
                 };
                 let system = equations.finalize_static(
                     self.admission.linear.workers,
-                    self.linear(),
+                    self.linear().clone(),
                     self.admission.resources(),
                     &self.admission.discretizations,
                     &self.admission.system_scaling,
@@ -544,8 +544,8 @@ impl CommonSpatialPlan {
     }
 
     #[must_use]
-    pub const fn linear(&self) -> SolverPlan {
-        self.admission.linear.solver
+    pub const fn linear(&self) -> &SolverPlan {
+        &self.admission.linear.solver
     }
 }
 

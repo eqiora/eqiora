@@ -72,7 +72,7 @@ fn mixed_scalar_fields_share_primal_replay_and_observation_products() {
                 &model,
                 cartesian_box_resources(&geometry, &[2]),
                 CommonSpatialPolicy::Q1,
-                solve,
+                solve.clone(),
                 None,
                 None,
                 &REFERENCE_LINEAR_SOLVER,

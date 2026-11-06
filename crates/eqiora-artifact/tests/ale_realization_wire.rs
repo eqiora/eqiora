@@ -26,8 +26,8 @@ use eqiora_realization::{
     resolve_fixed_topology_ale_coupled,
 };
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 use ulid::Ulid;
 
@@ -62,7 +62,7 @@ fn ale_round_trips_the_complete_graph_and_typed_identity() {
         assert_eq!(reference.semantic_revision(), decoded.semantic_revision());
         let text = String::from_utf8(bytes).unwrap();
         for required in [
-            "eqiora.realization-envelope/v11",
+            "eqiora.realization-envelope/v12",
             "current-ale-geometry",
             "reference-configuration",
             "p1-harmonic-extension",
@@ -495,7 +495,7 @@ fn capabilities(spatial_dimension: usize) -> RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
@@ -503,7 +503,7 @@ fn capabilities(spatial_dimension: usize) -> RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora_solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Reproducible,
                 scalar_type: ScalarType::F64,
             },
