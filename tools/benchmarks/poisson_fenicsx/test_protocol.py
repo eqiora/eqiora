@@ -14,7 +14,7 @@ from worker_arguments import worker_arguments
 import numpy as np
 
 from accuracy import LEVELS, check_accuracy
-from shared_measurement import ComparisonError
+from shared_measurement import ComparisonError, THREAD_KEYS, child_environment
 from shared_accuracy import check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
 
 spec = importlib.util.spec_from_file_location("comparison_driver", Path(__file__).with_name("run.py"))
@@ -154,13 +154,13 @@ class ProtocolTests(unittest.TestCase):
                    "MPICC": "/foreign/mpicc", "PETSC_OPTIONS": "-mat_type aijcusparse",
                    "CFLAGS": "-ffast-math"}
         with patch.dict(os.environ, foreign):
-            fenicsx = driver.child_environment("fenicsx", Path("/isolated/bin/python"), Path("/home/scratch"))
-            eqiora = driver.child_environment("eqiora", Path("/wheel/bin/python"), Path("/home/scratch"))
+            fenicsx = child_environment("fenicsx", Path("/isolated/bin/python"), Path("/home/scratch"))
+            eqiora = child_environment("eqiora", Path("/wheel/bin/python"), Path("/home/scratch"))
         for key in foreign:
             self.assertNotIn(key, fenicsx)
         self.assertEqual(eqiora["LD_LIBRARY_PATH"], "/foreign-openmpi")
         self.assertNotIn("LD_PRELOAD", eqiora)
-        self.assertTrue(all(fenicsx[key] == "1" for key in driver.THREAD_KEYS))
+        self.assertTrue(all(fenicsx[key] == "1" for key in THREAD_KEYS))
 
 
 if __name__ == "__main__":

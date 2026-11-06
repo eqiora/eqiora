@@ -7,11 +7,10 @@ import json
 import math
 import os
 from pathlib import Path
-import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shared_measurement import THREAD_KEYS, child_environment
+from shared_campaign import collect_reports
 from accuracy import declared_levels
 
 HERE = Path(__file__).resolve().parent
@@ -41,34 +40,9 @@ def main():
         parser.error("requested CPU is outside the caller's affinity")
     if args.output.exists():
         parser.error("output directory must not already exist; preserve earlier receipts")
-    args.output = args.output.resolve()
-    args.output.mkdir(parents=True)
-    os.sched_setaffinity(0, {args.cpu})
-    reports = []
-    for index, cells in enumerate(levels):
-        # Alternate launch order, retaining separate environments/processes.
-        backends = ("eqiora", "fenicsx") if index % 2 == 0 else ("fenicsx", "eqiora")
-        for backend in backends:
-            directory = args.output / f"n{cells}" / backend
-            directory.mkdir(parents=True)
-            executable = (args.eqiora_python if backend == "eqiora" else args.fenicsx_python).absolute()
-            output = directory / "result.json"
-            command = [str(executable), "-I", str(HERE / f"{backend}_case.py"),
-                       "--dimension", str(args.dimension), "--cells", str(cells), "--mode", args.mode, "--output", str(output)]
-            if backend == "eqiora":
-                command += ["--wheel", str(args.eqiora_wheel.resolve()), "--revision", args.eqiora_revision,
-                            "--build-profile", args.eqiora_build_profile]
-            with (directory / "worker.log").open("w") as log:
-                completed = subprocess.run(command, cwd=ROOT, env=child_environment(backend, executable, directory),
-                                           stdout=log, stderr=subprocess.STDOUT, check=False)
-            if completed.returncode:
-                error = {"error": "comparison_worker_failed", "backend": backend, "cells": cells,
-                         "exit_code": completed.returncode, "log": str(directory / "worker.log"),
-                         "complete_comparison": False}
-                (args.output / "failure.json").write_text(json.dumps(error, indent=2)+"\n")
-                print(json.dumps(error))
-                return 2
-            reports.append(json.loads(output.read_text()))
+    reports = collect_reports(args, levels, problem_root=HERE)
+    if reports is None:
+        return 2
     orders = {}
     for backend in ("eqiora", "fenicsx"):
         rows = sorted((row for row in reports if row["tool"] == backend), key=lambda row: row["cells_per_axis"])

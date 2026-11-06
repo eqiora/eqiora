@@ -22,7 +22,8 @@ THREAD_KEYS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RA
 
 def shared_sources():
     """Bind shared implementation bytes as well as each problem's drivers."""
-    return (Path(__file__).resolve(), Path(__file__).with_name("shared_accuracy.py").resolve())
+    return tuple(Path(__file__).with_name(name).resolve()
+                 for name in ("shared_measurement.py", "shared_accuracy.py", "shared_campaign.py"))
 
 
 def float64_hex(value):
