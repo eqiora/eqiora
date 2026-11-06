@@ -1,5 +1,6 @@
 //! Ordinary 3D Hex preparation. Numerical qualification is separately reviewed.
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 
 use eqiora::api::ModelDocument;
 use eqiora::artifact::{
@@ -8,7 +9,7 @@ use eqiora::artifact::{
 };
 use eqiora::compiler::StaticBindingValue;
 use eqiora::geometry::{GeometryGraph, GeometryTopologyHandle};
-use eqiora::meshing::{CartesianMesh, MeshTopology};
+use eqiora::meshing::{CartesianMesh, MeshEntity, MeshTopology};
 
 const SOURCE: &str = include_str!("../../../verify/numerics/cartesian-hex-elasticity/model.eqi");
 const SIDES: [&str; 6] = [
@@ -113,11 +114,69 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
         &correspondence,
     )
     .unwrap();
-    assert_eq!(mesh.vertices().len(), 27);
-    assert_eq!(mesh.cells().len(), 8);
-    for cell in mesh.cells() {
-        assert_eq!(cell.len(), 8);
-        let corners: Vec<_> = cell.iter().map(|&v| mesh.vertices()[v].clone()).collect();
+    let production = MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &cells,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    let owner = eqiora_numerics::AuthenticatedCommonMesh::structured_cartesian(
+        geometry.clone(),
+        mesh.clone(),
+        correspondence,
+        production,
+    )
+    .unwrap();
+    let model = eqiora::artifact::ModelEnvelope::from_program(document.program()).unwrap();
+    let solver = eqiora_numerics::CommonSolvePolicy::Linear(
+        eqiora_numerics::CommonLinearRequest::exact(
+            eqiora::solver::SolverPlan::new(
+                eqiora::solver::LinearSolver::ConjugateGradient,
+                1e-14,
+                1e-14,
+                NonZeroUsize::new(10000).unwrap(),
+            )
+            .unwrap()
+            .with_preconditioner(eqiora::solver::PreconditionerPolicy::Identity)
+            .with_reduction(eqiora::solver::ReductionPolicy::Reproducible),
+            eqiora::solver::REFERENCE_SOLVER_PROVIDER,
+        )
+        .unwrap(),
+    );
+    let plan = eqiora_numerics::ResolvedCommonPlan::resolve(
+        &model,
+        owner,
+        eqiora_numerics::CommonSpatialPolicy::Q1,
+        solver,
+        None,
+        None,
+        &eqiora::solver::REFERENCE_LINEAR_SOLVER,
+        None,
+        document.authored_formulation_projection().unwrap(),
+        Some(eqiora_realization::QuadraturePolicy::GaussLegendre {
+            points_per_axis: NonZeroUsize::new(2).unwrap(),
+        }),
+    )
+    .unwrap();
+    let bytes = plan.to_bytes().unwrap();
+    let replay = eqiora_numerics::ResolvedCommonPlan::from_bytes(
+        &bytes,
+        &eqiora::solver::REFERENCE_LINEAR_SOLVER,
+        &[],
+    )
+    .unwrap();
+    assert_eq!(replay.to_bytes().unwrap(), bytes);
+    let native = mesh.mesh();
+    assert_eq!(native.entity_count(0), Some(27));
+    assert_eq!(native.entity_count(3), Some(8));
+    for cell in 0..8 {
+        let vertices = native.entity_vertices(MeshEntity::new(3, cell)).unwrap();
+        assert_eq!(vertices.len(), 8);
+        let corners: Vec<_> = vertices
+            .into_iter()
+            .map(|v| native.vertex_coordinates(v).unwrap())
+            .collect();
         let lower: Vec<_> = (0..3)
             .map(|a| corners.iter().map(|p| p[a]).min_by(f64::total_cmp).unwrap())
             .collect();
@@ -142,7 +201,7 @@ fn invalid_axes_and_real_decoder_budget_reject_before_any_result() {
     ] {
         assert!(CartesianMesh::from_axes(axes).is_err());
     }
-    let mesh = CartesianMesh::uniform(&[(0., 2.), (0., 3.), (0., 4.)], &[2; 3]).unwrap();
+    let mesh = CartesianMesh::uniform(&[[0., 2.], [0., 3.], [0., 4.]], &[2; 3]).unwrap();
     let artifact = CartesianMeshEnvelopeV1::from_mesh(&mesh).unwrap();
     let limits = CartesianMeshDecoderLimits {
         max_cartesian_entities: 1,

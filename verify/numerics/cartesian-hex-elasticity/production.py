@@ -47,7 +47,9 @@ def prepare(eqiora, directory):
     write(directory, 'model.eqi', source)
     write(directory, 'mesh.json', mesh.to_bytes())
     model = eqiora.compile(source=source.decode(), filename='cartesian-hex-elasticity.eqi', entry='CartesianHexElasticity', geometry=geometry,
-        bindings={'body': geometry.selection('body'), **{side: (geometry.selection(side), geometry.selection('body')) for side in SIDES}, 'mu': 3., 'lambda': 2.})
+        bindings={'body': geometry.selection('body'), **{side: (geometry.selection(side), geometry.selection('body')) for side in SIDES}, 'mu': 3., 'lambda': 2.,
+            'a0': [1., 0., 1.], 'a1': [2., 3., 0.], 'a2': [0., 1., 2.],
+            'tx': [1.125, .375, .1875], 'ty': [.375, 1.875, .1875], 'tz': [.1875, .1875, 1.5]})
     write(directory, 'model.json', model.to_bytes())
     field = model.field('definition.displacement')
     observables = tuple(model.observable('definition.'+name) for name in ('energy', 'left_x', 'left_y', 'left_z'))
