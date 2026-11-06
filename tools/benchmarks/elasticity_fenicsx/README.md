@@ -105,7 +105,7 @@ python -m unittest discover -s tools/benchmarks/elasticity_fenicsx -p 'test_*.py
 ```
 
 The `eqiora_case.py` and `fenicsx_case.py` worker commands take explicit
-`--mode correctness-only --cells N --output /home/.../report.json` arguments.
+`--mode correctness-only --cells N --output OUTPUT/report.json` arguments.
 The Eqiora command additionally requires `--wheel`, `--revision` (actual build
 producer), and `--build-profile release`. Use the shared monitor's one-CPU
 affinity and one-thread environment controls for either worker. Each FEniCSx
