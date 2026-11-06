@@ -153,7 +153,15 @@ def observations(system, function, fields, canonical, *, jit_options):
         vector = imbalance.duplicate(); vector.set(0.)
         vector.array[system.prepared.velocity_to_mixed] = lift.x.array
         matrix_reaction.append(vector.dot(imbalance)); vector.destroy()
-    for item in (complete, nodal, imbalance):
+    canonical_reaction = system.transformation.createVecRight()
+    system.transformation.multTranspose(imbalance, canonical_reaction)
+    constrained = np.setdiff1d(np.arange(len(canonical), dtype=PETSc.IntType), system.free)
+    if len(constrained) % 2 or np.any(constrained[::2]+1 != constrained[1::2]):
+        raise ComparisonError('essential momentum indices do not form distinct vertex component pairs')
+    global_reaction = canonical_reaction.array[constrained].reshape(-1, 2).sum(axis=0)
+    for item in (complete, nodal, imbalance, canonical_reaction):
         item.destroy()
     return {'fields': fields, 'force_on_domain': reaction.tolist(), 'force_on_selection': (-reaction).tolist(),
-            'matrix_virtual_work_on_domain': matrix_reaction}
+            'matrix_virtual_work_on_domain': matrix_reaction,
+            'global_essential_reaction_on_domain': global_reaction.tolist(),
+            'global_reaction_scope': 'sum uneliminated canonical momentum residual over the essential vertex union once'}

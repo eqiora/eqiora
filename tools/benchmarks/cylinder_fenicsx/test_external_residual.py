@@ -12,12 +12,14 @@ class ExternalResidualTests(unittest.TestCase):
                                       [-1., 0., 18.])
         with self.assertRaises(ComparisonError):
             csr_product([0, 2], [0], [1.], [1.])
+        with self.assertRaises(ComparisonError):
+            csr_product(np.array(0), [0], [1.], [1.])
 
     def test_bad_free_basis_scaling_and_dimensions_fail(self):
         operator = {'indptr': np.array([0, 1, 2]), 'indices': np.array([0, 1]), 'values': np.array([2., 4.]),
                     'free': np.array([2, 0]), 'scales': np.array([2., .5]), 'rhs': np.array([3., 16.])}
         validate_operator(operator, canonical_size=3, expected_free=[2, 0], expected_scales=[2., .5])
-        for key, value in (('free', np.array([0, 0])), ('scales', np.array([2., 1.])),
+        for key, value in (('indptr', np.array(0)), ('free', np.array(0)), ('free', np.array([0, 0])), ('scales', np.array([2., 1.])),
                            ('rhs', np.array([1.])), ('indices', np.array([0, 2]))):
             corrupt = dict(operator); corrupt[key] = value
             with self.assertRaises(ComparisonError):

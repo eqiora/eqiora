@@ -8,6 +8,14 @@ from shared_measurement import ComparisonError
 METRICS = ('velocity', 'pressure', 'force_x', 'force_y')
 
 
+def check_force_pair(row):
+    on_domain, on_selection = np.asarray(row['force_on_domain']), np.asarray(row['force_on_selection'])
+    if (on_domain.shape != (2,) or on_selection.shape != (2,)
+            or not np.isfinite(on_domain).all() or not np.isfinite(on_selection).all()
+            or not np.array_equal(on_domain, -on_selection)):
+        raise ComparisonError('public force labels must retain exact on-domain/on-selection action-reaction')
+
+
 def differences(data, left, right):
     norms = field_distances(data, left['fields'], right['fields'])
     force = np.abs(np.asarray(left['force_on_selection'])-np.asarray(right['force_on_selection']))
@@ -33,6 +41,7 @@ def freeze_budget(data, references, residual_control):
            for r in references.values()):
         raise ComparisonError('external reference failed the predeclared backward residual ceiling')
     for row in references.values():
+        check_force_pair(row)
         force = np.asarray(row['force_on_selection'])
         if force.shape != (2,) or not np.isfinite(force).all():
             raise ComparisonError('invalid external force vector')
@@ -73,12 +82,14 @@ def freeze_budget(data, references, residual_control):
 
 
 def compare(data, candidate, reference, frozen):
+    check_force_pair(candidate)
+    check_force_pair(reference)
     differences_from_a = differences(data, candidate, reference)
     for key, value in differences_from_a.items():
         if not math.isfinite(value) or value > frozen['metrics'][key]['tolerance']:
             raise ComparisonError(f'candidate fails frozen {key} agreement gate')
     residual = candidate['scaled_residual_inf']
-    if not math.isfinite(residual) or residual > frozen['residual_control']['absolute_scaled_residual_ceiling']:
+    if not math.isfinite(residual) or residual < 0 or residual > frozen['residual_control']['absolute_scaled_residual_ceiling']:
         raise ComparisonError('candidate fails frozen external-operator residual ceiling')
     return differences_from_a
 
@@ -101,12 +112,14 @@ def check_falsifiers(data, reference, frozen):
         elif name == 'reverse_drag': mutant['force_on_selection'][0] *= -1
         elif name == 'shift_drag': mutant['force_on_selection'][0] += FORCE_SCALE
         elif name == 'shift_lift': mutant['force_on_selection'][1] += FORCE_SCALE
+        mutant['force_on_domain'] = -mutant['force_on_selection']
         mutants[name] = mutant
     if abs(reference['force_on_selection'][1]) >= FORCE_SCALE:
         for name in ('zero_lift', 'reverse_lift'):
             mutant = copy.deepcopy(reference)
             mutant['force_on_selection'] = np.asarray(mutant['force_on_selection']).copy()
             mutant['force_on_selection'][1] = 0 if name == 'zero_lift' else -mutant['force_on_selection'][1]
+            mutant['force_on_domain'] = -mutant['force_on_selection']
             mutants[name] = mutant
     rejected = []
     for name, mutant in mutants.items():

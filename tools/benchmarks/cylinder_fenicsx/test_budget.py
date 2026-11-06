@@ -2,7 +2,7 @@
 import copy
 import unittest
 import numpy as np
-from budget import compare, freeze_budget, residual_ceiling
+from budget import compare, freeze_budget, residual_ceiling, check_falsifiers
 from topology import ComparisonError
 from test_topology import fixture
 
@@ -11,7 +11,7 @@ def reference():
     return {'fields': {'velocity_vertex': np.tile([.2, 0.], (6, 1)),
                        'velocity_cell_bubble': np.tile([.01, -.02], (4, 1)),
                        'pressure_vertex': np.full(6, .005)},
-            'force_on_selection': [.01, .0001], 'scaled_residual_inf': 0.}
+            'force_on_domain': [-.01, -.0001], 'force_on_selection': [.01, .0001], 'scaled_residual_inf': 0.}
 
 
 class BudgetTests(unittest.TestCase):
@@ -30,6 +30,18 @@ class BudgetTests(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 with self.assertRaises(ComparisonError):
                     compare(fixture(), candidate, reference(), frozen)
+
+    def test_force_pair_and_both_resolved_lift_falsifiers(self):
+        references = {key: reference() for key in ('A', 'B', 'C')}
+        for row in references.values():
+            row['force_on_selection'][1] = .001
+            row['force_on_domain'][1] = -.001
+        frozen = freeze_budget(fixture(), references, residual_ceiling(40, 10., 2., 1.))
+        rejected = check_falsifiers(fixture(), references['A'], frozen)
+        self.assertIn('zero_lift', rejected); self.assertIn('reverse_lift', rejected)
+        candidate = reference(); candidate['force_on_domain'][0] *= -1
+        with self.assertRaises(ComparisonError):
+            compare(fixture(), candidate, references['A'], frozen)
 
     def test_inconclusive_is_not_a_larger_allowance(self):
         references = {key: reference() for key in ('A', 'B', 'C')}

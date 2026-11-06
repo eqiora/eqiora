@@ -105,6 +105,10 @@ def main():
         observation['scaled_residual_inf'] = residual_inf(operator, canonical)
         observation['analytic_checks'] = check_trace_and_flux(
             data, fields, control['absolute_scaled_residual_ceiling'])
+        global_allowance = len(prepared.coordinates)*MU*U*(control['absolute_scaled_residual_ceiling']+256*np.finfo(float).eps)
+        observation['global_reaction_allowance'] = global_allowance
+        if np.any(np.abs(observation['global_essential_reaction_on_domain']) > global_allowance):
+            raise ComparisonError('external union-of-essential-vertices reaction balance failed')
         observation['physical_rms'] = physical_norms(data, fields)
         observation['inlet_flux'] = boundary_flux(data, fields, 'inlet')
         observation['outlet_flux'] = boundary_flux(data, fields, 'outlet')

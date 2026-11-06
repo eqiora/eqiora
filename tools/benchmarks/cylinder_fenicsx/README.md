@@ -216,8 +216,11 @@ the primary mathematical review before any solved output.
 Check nodal boundary traces with a declared 256 eps U arithmetic margin and
 analytic discrete inlet flux with 256 eps U H times the inlet edge count.
 Summing all free pressure equations gives a net-flux allowance
-Nv U H r_cap plus that input-only arithmetic margin. These are separate
-trace/continuity controls, not the four field/force tolerances.
+Nv U H r_cap plus that input-only arithmetic margin. A separate global reaction control sums the uneliminated canonical momentum
+residuals over the essential-vertex union once and allows
+Nv mu U (r_cap + 256 eps), in N/m. Retain the public force action–reaction
+pair exactly, not merely one signed component. These are separate
+trace/continuity/equilibrium controls, not the four field/force tolerances.
 
 `calibrate.py --mesh MESH_JSON --output NEW_DIRECTORY` implements this batch.
 It records each reference observation, original mesh identities, quadrature,
