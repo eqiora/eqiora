@@ -7,6 +7,7 @@ mod observables;
 mod planar;
 mod quadratic;
 mod result_replay;
+mod robin;
 mod solver_diagonal;
 mod stationary_state;
 mod storage;
