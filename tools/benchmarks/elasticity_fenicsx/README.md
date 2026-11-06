@@ -64,21 +64,39 @@ falsifier, not the sole accuracy case. Use the established equilibrium allowance
 `5e-11 * max(1, |reaction_i| + |force_i|)` N/m. Do not infer equilibrium from
 zero resultants alone.
 
-## Measurement boundary and pending shared utility
+## Measurement boundary and shared utility
 
 No timing campaign starts until protocol review, both tools' correctness and
 an allocated CPU/monitoring window. Reuse the existing Poisson process monitor,
-artifact provenance and thread/CPU controls. The common execution owner needs
-an injected accuracy callback and a vector-safe candidate serializer instead
-of its scalar Poisson import and scalar value conversion. Problem-local code
+artifact provenance and thread/CPU controls. The shared execution owner accepts
+an injected accuracy callback and a vector-safe candidate serializer. Problem-local code
 owns vector norms, component topology and equilibrium, not a second private
 measurement framework. This directory does not modify that shared owner.
 
 When that interface is available, use one thread/rank, a pinned isolated CPU,
 one fresh process per tool and level, one cold execution, one separate profile
-diagnostic, two warmups and seven timed ordinary executions. Preserve all raw
+diagnostic, one further untimed affine-load equilibrium probe after the cold
+execution, two warmups and seven timed ordinary executions. Preserve all raw
 attempts, candidate fields, imports, preparation, memory, environment, installed
 wheel and FEniCSx provenance. Profile phases are diagnostic calls, not inferred
 subtractions from ordinary timings. No stable performance claim follows from
 correctness-only smoke or a busy host. Actual optimized wheel producer identity
 must be retained independently of any later tree-identical signed commit.
+
+## Running correctness checks
+
+Run the pure analytic tests with a NumPy environment:
+
+```sh
+python -m unittest discover -s tools/benchmarks/elasticity_fenicsx -p 'test_*.py'
+```
+
+The `eqiora_case.py` and `fenicsx_case.py` worker commands take explicit
+`--mode correctness-only --cells N --output /home/.../report.json` arguments.
+The Eqiora command additionally requires `--wheel`, `--revision` (actual build
+producer), and `--build-profile release`. Use the shared monitor's one-CPU
+affinity and one-thread environment controls for either worker. Each FEniCSx
+output parent must have a fresh JIT cache. Recheck all eight output reports with
+`validate.py report...`; this recomputes field accuracy and convergence rather
+than accepting stored accuracy summaries. The common measurement helper must
+be present in the checkout before running workers.
