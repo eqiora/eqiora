@@ -1,0 +1,44 @@
+// Cartesian Q1 patch; independent mathematics lives in reference/.
+public component CartesianHexElasticity(
+  support body: volume(ambient_dimension=3),
+  support x_lower: boundary(parent=body),
+  support x_upper: boundary(parent=body),
+  support y_lower: boundary(parent=body),
+  support y_upper: boundary(parent=body),
+  support z_lower: boundary(parent=body),
+  support z_upper: boundary(parent=body),
+  parameter mu: Pa,
+  parameter lambda: Pa,
+  parameter a0: vector<1,3>,
+  parameter a1: vector<1,3>,
+  parameter a2: vector<1,3>,
+  parameter tx: vector<Pa,3>,
+  parameter ty: vector<Pa,3>,
+  parameter tz: vector<Pa,3>
+) {
+  variable displacement: vector<m,3> on body in h1;
+  relation balance on body { -div((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=0; }
+  relation fixed on x_lower {
+    trace(displacement)=(a0*coordinate(0)+a1*coordinate(1)+a2*coordinate(2))/16;
+  }
+  relation natural_x_upper on x_upper { normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=tx; }
+  relation natural_y_lower on y_lower { normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=-ty; }
+  relation natural_y_upper on y_upper { normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=ty; }
+  relation natural_z_lower on z_lower { normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=-tz; }
+  relation natural_z_upper on z_upper { normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))=tz; }
+  observable energy: J = integral(
+    mu*contract(symmetric_part(grad(displacement)),symmetric_part(grad(displacement)),axes=((0,0),(1,1)))
+    +lambda*div(displacement)*div(displacement)/2, measure(body));
+  observable left_x: N = integral(component(normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement)))),indices=(0,)),measure(x_lower));
+  observable left_y: N = integral(component(normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement)))),indices=(1,)),measure(x_lower));
+  observable left_z: N = integral(component(normal((2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement)))),indices=(2,)),measure(x_lower));
+  form weak for balance {
+    test w: m for displacement zero_on x_lower;
+    integrate(body,contract(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))),axes=((0,0),(1,1)))) =
+      integrate(x_upper,contract(trace(w),tx,axes=((0,0),)))
+      +integrate(y_lower,contract(trace(w),-ty,axes=((0,0),)))
+      +integrate(y_upper,contract(trace(w),ty,axes=((0,0),)))
+      +integrate(z_lower,contract(trace(w),-tz,axes=((0,0),)))
+      +integrate(z_upper,contract(trace(w),tz,axes=((0,0),)));
+  }
+}

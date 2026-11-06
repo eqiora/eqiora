@@ -1,0 +1,155 @@
+//! Ordinary 3D Hex preparation. Numerical qualification is separately reviewed.
+use std::collections::BTreeMap;
+
+use eqiora::api::ModelDocument;
+use eqiora::artifact::{
+    CartesianMeshCellsV2, CartesianMeshDecoderLimits, CartesianMeshEnvelopeV1,
+    GeometryMeshCorrespondenceEnvelopeV1, MeshProductionLineageEnvelopeV1,
+};
+use eqiora::compiler::StaticBindingValue;
+use eqiora::geometry::{GeometryGraph, GeometryTopologyHandle};
+use eqiora::meshing::{CartesianMesh, MeshTopology};
+
+const SOURCE: &str = include_str!("../../../verify/numerics/cartesian-hex-elasticity/model.eqi");
+const SIDES: [&str; 6] = [
+    "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
+];
+
+#[test]
+fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
+    let graph = GeometryGraph::new();
+    let cuboid = graph.cuboid([0., 2.], [0., 3.], [0., 4.]).unwrap();
+    let mut names = BTreeMap::from([("body".to_owned(), vec![cuboid.region().into()])]);
+    for (name, boundary) in SIDES.into_iter().zip(cuboid.boundaries()) {
+        names.insert(
+            name.to_owned(),
+            vec![GeometryTopologyHandle::from(boundary)],
+        );
+    }
+    let geometry = graph.build(&cuboid, &names).unwrap();
+    let dimensionless = eqiora::DimExponents::from_integers([0; 7]).unwrap();
+    let pressure = eqiora::DimExponents::from_integers([1, -1, -2, 0, 0, 0, 0]).unwrap();
+    let vector = |dimension, values: [f64; 3]| {
+        eqiora::ValueLiteral::new(
+            eqiora::ValueType::shaped(
+                eqiora::ScalarDomain::Real,
+                dimension,
+                eqiora::ValueShape::new([3]).unwrap(),
+                eqiora::ValueFrame::SpatialCartesian,
+            )
+            .unwrap(),
+            values.map(|v| (v, 0.)),
+        )
+        .unwrap()
+    };
+    let values = [
+        (
+            "mu",
+            eqiora::ValueLiteral::new(
+                eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, pressure).unwrap(),
+                [(3., 0.)],
+            )
+            .unwrap(),
+        ),
+        (
+            "lambda",
+            eqiora::ValueLiteral::new(
+                eqiora::ValueType::scalar(eqiora::ScalarDomain::Real, pressure).unwrap(),
+                [(2., 0.)],
+            )
+            .unwrap(),
+        ),
+        ("a0", vector(dimensionless, [1., 0., 1.])),
+        ("a1", vector(dimensionless, [2., 3., 0.])),
+        ("a2", vector(dimensionless, [0., 1., 2.])),
+        ("tx", vector(pressure, [1.125, 0.375, 0.1875])),
+        ("ty", vector(pressure, [0.375, 1.875, 0.1875])),
+        ("tz", vector(pressure, [0.1875, 0.1875, 1.5])),
+    ];
+    let mut bindings = vec![(
+        "body",
+        StaticBindingValue::GeometrySupport {
+            geometry: &geometry,
+            selection: geometry.entity_set("body").unwrap(),
+            parent: None,
+        },
+    )];
+    for side in SIDES {
+        bindings.push((
+            side,
+            StaticBindingValue::GeometrySupport {
+                geometry: &geometry,
+                selection: geometry.entity_set(side).unwrap(),
+                parent: Some(geometry.entity_set("body").unwrap()),
+            },
+        ));
+    }
+    bindings.extend(
+        values
+            .iter()
+            .map(|(name, value)| (*name, StaticBindingValue::Value(value))),
+    );
+    let document = ModelDocument::compile_selected(
+        "cartesian-hex-elasticity.eqi",
+        SOURCE,
+        "CartesianHexElasticity",
+        &bindings,
+    )
+    .unwrap();
+    assert!(
+        document
+            .authored_formulation_projection()
+            .unwrap()
+            .is_some()
+    );
+    let cells = CartesianMeshCellsV2::new([2; 3]).unwrap();
+    let (mesh, correspondence) =
+        GeometryMeshCorrespondenceEnvelopeV1::from_cartesian_box_v1(&geometry, cells.cells())
+            .unwrap();
+    MeshProductionLineageEnvelopeV1::from_structured_cartesian_v2_resources(
+        &cells,
+        &geometry,
+        &mesh,
+        &correspondence,
+    )
+    .unwrap();
+    assert_eq!(mesh.vertices().len(), 27);
+    assert_eq!(mesh.cells().len(), 8);
+    for cell in mesh.cells() {
+        assert_eq!(cell.len(), 8);
+        let corners: Vec<_> = cell.iter().map(|&v| mesh.vertices()[v].clone()).collect();
+        let lower: Vec<_> = (0..3)
+            .map(|a| corners.iter().map(|p| p[a]).min_by(f64::total_cmp).unwrap())
+            .collect();
+        for (corner, point) in corners.iter().enumerate() {
+            for axis in 0..3 {
+                assert_eq!(
+                    point[axis],
+                    lower[axis] + [1., 1.5, 2.][axis] * ((corner >> axis) & 1) as f64
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn invalid_axes_and_real_decoder_budget_reject_before_any_result() {
+    for axes in [
+        vec![vec![0., 0.], vec![0., 3.], vec![0., 4.]],
+        vec![vec![2., 0.], vec![0., 3.], vec![0., 4.]],
+        vec![vec![0., f64::INFINITY], vec![0., 3.], vec![0., 4.]],
+        vec![vec![0., f64::NAN], vec![0., 3.], vec![0., 4.]],
+    ] {
+        assert!(CartesianMesh::from_axes(axes).is_err());
+    }
+    let mesh = CartesianMesh::uniform(&[(0., 2.), (0., 3.), (0., 4.)], &[2; 3]).unwrap();
+    let artifact = CartesianMeshEnvelopeV1::from_mesh(&mesh).unwrap();
+    let limits = CartesianMeshDecoderLimits {
+        max_cartesian_entities: 1,
+        ..Default::default()
+    };
+    assert!(
+        CartesianMeshEnvelopeV1::from_json_with_limits(&artifact.canonical_json().unwrap(), limits)
+            .is_err()
+    );
+}
