@@ -62,10 +62,11 @@ def prepare(args):
         evidence = eqiora.solid.linear_elasticity_evidence(result)
         native = evidence.solve
         row = {name: getattr(native, name) for name in (
-            'algorithm', 'preconditioner', 'completed_iterations', 'initial_residual_norm',
+            'algorithm', 'completed_iterations', 'initial_residual_norm',
             'reported_residual_norm', 'true_residual_norm', 'residual_target',
             'backend', 'adapter', 'verification_adapter', 'reduction',
             'relative_tolerance', 'absolute_tolerance', 'maximum_iterations')}
+        row['preconditioner'] = native.preconditioner.kind
         row['convergence_reason'] = str(native.reason)
         if (row['algorithm'] != 'conjugate-gradient' or row['preconditioner'] != 'identity'
                 or (row['relative_tolerance'], row['absolute_tolerance'], row['maximum_iterations']) != (1e-12, 1e-14, 10000)):
