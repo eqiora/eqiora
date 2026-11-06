@@ -48,7 +48,10 @@ correspondence under a distinct `planar-rectangle-v2-simplicial-import-v1` sourc
 inside the existing correspondence envelope. All vertices must lie within the
 exact rectangle, and positive boundary intervals must cover each canonical side
 once with exact endpoints and adjacency. Exact signed cell boundaries cancel on
-every two-parent interior edge; a closed overlapping interior complex rejects.
+every two-parent interior facet through the existing simplex boundary owner.
+External imports in both dimensions require this explicit check; legacy producer
+replay and the global simplex constructor are unchanged. A closed overlapping
+interior complex rejects.
 Classification tolerance is explicitly
 zero. No synthetic PlanarRegion or coordinate-based Geometry rewrite is used.
 Existing Cartesian and generated-triangle correspondence encodings stay fixed.

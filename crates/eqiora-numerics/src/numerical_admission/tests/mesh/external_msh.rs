@@ -548,8 +548,16 @@ fn external_msh_rectangle_rejects_hidden_positive_interior_double_cover() {
 #[test]
 fn external_msh_generic_planar_rejects_hidden_interior_double_cover() {
     let source = hidden_interior_double_cover_source();
-    let parsed = eqiora_io_gmsh::import_msh41(source,eqiora_io_gmsh::Msh41Policy::mesh(2,eqiora_meshing::MeshQualityGate::new(0.01).unwrap()).unwrap(),|_,_,_|{}).unwrap();
-    assert_eq!(parsed.cells().len(),6);
-    let failure = AuthenticatedCommonMesh::import_msh41(square(1.),policy(4,4096),source.to_vec()).unwrap_err();
+    let parsed = eqiora_io_gmsh::import_msh41(
+        source,
+        eqiora_io_gmsh::Msh41Policy::mesh(2, eqiora_meshing::MeshQualityGate::new(0.01).unwrap())
+            .unwrap(),
+        |_, _, _| {},
+    )
+    .unwrap();
+    assert_eq!(parsed.cells().len(), 6);
+    let failure =
+        AuthenticatedCommonMesh::import_msh41(square(1.), policy(4, 4096), source.to_vec())
+            .unwrap_err();
     assert!(failure.message().contains("cancel"));
 }

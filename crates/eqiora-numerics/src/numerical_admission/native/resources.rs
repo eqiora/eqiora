@@ -226,11 +226,7 @@ pub(crate) fn derive_msh_resources(
     };
     let quality = eqiora_meshing::MeshQualityGate::new(minimum_mean_ratio)?;
     let (mesh, correspondence) = if geometry.polyhedral_vertices().is_some() {
-        let imported = import_msh41(
-            &provider_output,
-            Msh41Policy::mesh(3, quality)?,
-            |_, _, _| {},
-        )?;
+        let imported = import_source_simplices(source_policy, &provider_output, 3, quality)?;
         let boundary_facets = (0..imported.entity_count(2).unwrap_or(0))
             .filter(|&index| imported.is_boundary_entity(MeshEntity::new(2, index)) == Some(true))
             .count();
@@ -247,11 +243,7 @@ pub(crate) fn derive_msh_resources(
     } else if matches!(source_policy, MshSourcePolicy::External(_))
         && geometry.planar_rectangle_bounds().is_some()
     {
-        let imported = import_msh41(
-            &provider_output,
-            Msh41Policy::mesh(2, quality)?,
-            |_, _, _| {},
-        )?;
+        let imported = import_source_simplices(source_policy, &provider_output, 2, quality)?;
         let boundary_facets = (0..imported.entity_count(1).unwrap_or(0))
             .filter(|&i| imported.is_boundary_entity(MeshEntity::new(1, i)) == Some(true))
             .count();
@@ -267,11 +259,7 @@ pub(crate) fn derive_msh_resources(
             )?;
         (mesh, correspondence)
     } else if geometry.region().is_some() {
-        let imported = import_msh41(
-            &provider_output,
-            Msh41Policy::mesh(2, quality)?,
-            |_, _, _| {},
-        )?;
+        let imported = import_source_simplices(source_policy, &provider_output, 2, quality)?;
         if matches!(source_policy, MshSourcePolicy::External(_)) {
             let boundary_facets = (0..imported.entity_count(1).unwrap_or(0))
                 .filter(|&index| {
@@ -317,6 +305,19 @@ pub(crate) fn derive_msh_resources(
         correspondence,
         production,
     })
+}
+
+fn import_source_simplices(
+    source_policy: MshSourcePolicy,
+    source: &[u8],
+    dimension: usize,
+    quality: eqiora_meshing::MeshQualityGate,
+) -> Result<eqiora_meshing::SimplicialMesh, Diagnostic> {
+    let mesh = import_msh41(source, Msh41Policy::mesh(dimension, quality)?, |_, _, _| {})?;
+    if matches!(source_policy, MshSourcePolicy::External(_)) {
+        mesh.validate_signed_boundary_cancellation()?;
+    }
+    Ok(mesh)
 }
 
 fn derive_circular_hole_mesh(

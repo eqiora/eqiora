@@ -35,7 +35,7 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
                 "rectangle imported correspondence exceeds membership limits",
             ));
         }
-        validate_signed_edge_cancellation(native, cell_count, facet_count)?;
+        native.validate_signed_boundary_cancellation()?;
         let axis_bounds = bounds
             .iter()
             .map(|&[lower, upper]| (lower, upper))
@@ -124,44 +124,6 @@ impl GeometryMeshCorrespondenceEnvelopeV1 {
         }
         Ok(())
     }
-}
-
-// Positive cell maps alone do not rule out an overlapping closed interior
-// complex. Its exact induced orientations must cancel on every shared edge.
-fn validate_signed_edge_cancellation(
-    mesh: &SimplicialMesh,
-    cells: usize,
-    facets: usize,
-) -> Result<(), Diagnostic> {
-    let mut signed = vec![0_i8; facets];
-    for cell in 0..cells {
-        let boundary = mesh
-            .signed_boundary(MeshEntity::new(2, cell))
-            .ok_or_else(|| invalid_artifact("rectangle cell omitted signed boundary"))?;
-        for (edge, coefficient) in boundary {
-            let sum = signed.get_mut(edge.index()).ok_or_else(|| {
-                invalid_artifact("rectangle signed boundary references an absent edge")
-            })?;
-            *sum = sum
-                .checked_add(coefficient)
-                .ok_or_else(|| invalid_artifact("rectangle signed edge incidence overflows"))?;
-        }
-    }
-    for (edge, &sum) in signed.iter().enumerate() {
-        let parents = mesh
-            .incidence(MeshEntity::new(1, edge), 2)
-            .ok_or_else(|| invalid_artifact("rectangle edge omitted parent incidence"))?;
-        match parents.len() {
-            1 if matches!(sum, -1 | 1) => {}
-            2 if sum == 0 => {}
-            _ => {
-                return Err(invalid_artifact(
-                    "imported rectangle interior edge orientations must cancel and exposed edges must occur once",
-                ));
-            }
-        }
-    }
-    Ok(())
 }
 
 fn validate_exact_side_coverage(
