@@ -252,6 +252,50 @@ def _case_commands(cases: Iterable[str]) -> list[PlannedCommand]:
     ]
 
 
+def _studio_commands(*, interaction_tests: bool) -> list[PlannedCommand]:
+    return [
+        command(
+            "Studio quality",
+            "npm",
+            "run",
+            "check",
+            cwd="studio",
+            lane=STUDIO_LANE,
+        ),
+        command(
+            "Studio unit tests",
+            "npm",
+            "test",
+            cwd="studio",
+            lane=STUDIO_LANE,
+        ),
+        command(
+            "Studio build",
+            "npm",
+            "run",
+            "build",
+            cwd="studio",
+            lane=STUDIO_LANE,
+        ),
+        *(
+            (
+                command(
+                    "Studio interaction tests",
+                    "npm",
+                    "run",
+                    "test:e2e",
+                    "--",
+                    "--workers=1",
+                    cwd="studio",
+                    lane=STUDIO_LANE,
+                ),
+            )
+            if interaction_tests
+            else ()
+        ),
+    ]
+
+
 def _surface_commands(
     surfaces: Mapping[str, bool], *, jupyter_assets: bool, chrome_available: bool = True
 ) -> list[PlannedCommand]:
@@ -286,49 +330,7 @@ def _surface_commands(
             )
         )
     if surfaces["studio"]:
-        commands.extend(
-            [
-                command(
-                    "Studio quality",
-                    "npm",
-                    "run",
-                    "check",
-                    cwd="studio",
-                    lane=STUDIO_LANE,
-                ),
-                command(
-                    "Studio unit tests",
-                    "npm",
-                    "test",
-                    cwd="studio",
-                    lane=STUDIO_LANE,
-                ),
-                command(
-                    "Studio build",
-                    "npm",
-                    "run",
-                    "build",
-                    cwd="studio",
-                    lane=STUDIO_LANE,
-                ),
-                *(
-                    (
-                        command(
-                            "Studio interaction tests",
-                            "npm",
-                            "run",
-                            "test:e2e",
-                            "--",
-                            "--workers=1",
-                            cwd="studio",
-                            lane=STUDIO_LANE,
-                        ),
-                    )
-                    if chrome_available
-                    else ()
-                ),
-            ]
-        )
+        commands.extend(_studio_commands(interaction_tests=chrome_available))
     if surfaces["cubecl_experiment"]:
         manifest = "experiments/cubecl-local-action/Cargo.toml"
         commands.extend(
@@ -644,6 +646,8 @@ def build_plan(
                     chrome_available=chrome_available,
                 )
             )
+        if tier == "fast" and surfaces["studio"]:
+            commands.extend(_studio_commands(interaction_tests=False))
         if tier == "pr":
             limitations = (
                 "The pr tier is the local iteration loop: formatting, default-target tests and Clippy for directly changed packages, and explicitly named cases only.",
@@ -670,6 +674,11 @@ def build_plan(
         )
         limitations = (*limitations, "Site build and browser checks run in hosted Pages CI.")
 
+    if tier == "fast" and surfaces["studio"]:
+        limitations = (
+            *limitations,
+            "Studio interaction tests are deferred to affected or hosted Studio CI.",
+        )
     if tier in ("affected", "periodic") and surfaces["studio"] and not chrome_available:
         limitations = (
             *limitations,
@@ -778,6 +787,11 @@ def main() -> int:
             else detected.gpu_slots,
         )
         print(render_plan(plan, budget))
+        if arguments.tier == "pr" and paths and not plan.commands:
+            print(
+                "No local checks apply at the pr tier; checks are deferred to fast/affected or hosted pull-request CI. No checks were executed."
+            )
+            return 0
         if not arguments.plan:
             run_plan(
                 plan,
