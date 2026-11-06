@@ -54,6 +54,20 @@ public component SteadyHeat2d(
   }
 }
 
+public component TransientHeat2d(
+  support body: volume(ambient_dimension = 2),
+  state temperature: K on body in h1,
+  parameter conductivity: W / (m * K),
+  parameter capacity: J / (m ^ 3 * K),
+  expression heating: W / m ^ 3 on body
+) {
+  law heat_balance on body {
+    storage capacity * temperature;
+    flux -conductivity * grad(temperature);
+    source heating;
+  }
+}
+
 public component FixedTemperature2d(
   support body: volume(ambient_dimension = 2),
   support face: boundary(parent = body),
