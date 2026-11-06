@@ -196,6 +196,7 @@ impl Context<'_> {
             | E::NormalTrace { value, .. }
             | E::Component { value, .. }
             | E::SymmetricPart { value }
+            | E::IsotropicLift { value }
             | E::Variation { value, .. } => self.expression(value, depth + 1),
             E::Gradient { value } | E::Divergence { value } | E::Curl { value } => {
                 self.expression(value, depth + 1)?.div(length())
@@ -263,4 +264,52 @@ fn zero(value: &E) -> bool {
 }
 fn dimension(parts: &[(i32, i32); 7]) -> Option<D> {
     D::from_rationals(*parts).filter(|value| value.exponents() == *parts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_graph::{GraphStore, InMemoryGraphStore};
+
+    #[test]
+    fn isotropic_source_projection_retains_units_before_cancellation() {
+        let compiled = eqiora_compiler::CompiledModel::compile_selected(
+            "isotropic-units.eqi", "model M() { domain body=box(0,1,0,1); variable u:m on body; relation law on body { u=0[m]; } }", "M", &[],
+        ).unwrap();
+        let (transaction, model, _) = compiled.into_parts();
+        let mut store = InMemoryGraphStore::new();
+        store.commit(transaction).unwrap();
+        let program = KernelProgram::from_snapshot(&store.snapshot(), model).unwrap();
+        let domain = program
+            .nodes()
+            .find_map(|node| match node {
+                KernelNode::Domain(d) => Some(d.id().erase()),
+                _ => None,
+            })
+            .unwrap();
+        let mut context = Context {
+            program: &program,
+            domain,
+            dimensions: 2,
+            boundaries: &[],
+            name: "eta",
+            field: "u",
+            test: length(),
+            remaining: 65536,
+            integration_domain: None,
+        };
+        let pressure = D::from_integers([1, -1, -2, 0, 0, 0, 0]).unwrap();
+        let lift = E::IsotropicLift {
+            value: Box::new(E::Rational {
+                value: eqiora_schema::kernel::pure_operator::ExactRational::integer(0),
+                dimension: pressure.exponents(),
+            }),
+        };
+        assert_eq!(context.expression(&lift, 0), Some(pressure));
+        let changed = E::Add {
+            left: Box::new(lift),
+            right: Box::new(E::Number { value: 1.0 }),
+        };
+        assert!(context.expression(&changed, 0).is_none());
+    }
 }

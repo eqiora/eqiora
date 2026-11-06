@@ -198,6 +198,9 @@ pub enum AuthoredFormExpressionV1 {
     SymmetricPart {
         value: Box<Self>,
     },
+    IsotropicLift {
+        value: Box<Self>,
+    },
     Frobenius {
         left: Box<Self>,
         right: Box<Self>,

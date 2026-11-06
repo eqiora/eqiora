@@ -199,6 +199,15 @@ fn from_dag(
                     wrt: convert(*wrt)?,
                 }
             }
+            ExprNode::SymmetricPart(value) => AuthoredFormExpressionV1::SymmetricPart {
+                value: convert(*value)?,
+            },
+            ExprNode::IsotropicLift(value) => AuthoredFormExpressionV1::IsotropicLift {
+                value: convert(*value)?,
+            },
+            ExprNode::Divergence(value) => AuthoredFormExpressionV1::Divergence {
+                value: convert(*value)?,
+            },
             ExprNode::Gradient(value) => AuthoredFormExpressionV1::Gradient {
                 value: convert(*value)?,
             },
@@ -246,4 +255,39 @@ fn literal(
         value: rational.clone(),
         dimension: dimension.exponents(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eqiora_schema::kernel::ExprDagBuilder;
+
+    #[test]
+    fn dedicated_spatial_calculus_nodes_project_without_pure_application_wrappers() {
+        let mut builder = ExprDagBuilder::new();
+        let field = builder
+            .push(ExprNode::Symbol(SymbolRef::Field(Id::new())))
+            .unwrap();
+        let gradient = builder.push(ExprNode::Gradient(field)).unwrap();
+        let symmetric = builder.push(ExprNode::SymmetricPart(gradient)).unwrap();
+        let divergence = builder.push(ExprNode::Divergence(field)).unwrap();
+        let lift = builder.push(ExprNode::IsotropicLift(divergence)).unwrap();
+        let dag = builder.finish([symmetric, lift]).unwrap();
+        assert!(matches!(
+            AuthoredFormExpressionV1::from_expression(&dag, symmetric).unwrap(),
+            Some(AuthoredFormExpressionV1::SymmetricPart { .. })
+        ));
+        let projected = AuthoredFormExpressionV1::from_expression(&dag, lift)
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(&projected, AuthoredFormExpressionV1::IsotropicLift { value }
+            if matches!(value.as_ref(), AuthoredFormExpressionV1::Divergence { .. }))
+        );
+        let bytes = serde_json::to_vec(&projected).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<AuthoredFormExpressionV1>(&bytes).unwrap(),
+            projected
+        );
+    }
 }

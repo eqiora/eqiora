@@ -249,7 +249,10 @@ impl Context<'_, '_> {
                 self.native.pure(&definition, &[id])
             }
             E::Variation { value, .. } => self.expression(value, depth + 1),
-            E::Gradient { value } | E::Divergence { value } | E::SymmetricPart { value } => {
+            E::Gradient { value }
+            | E::Divergence { value }
+            | E::SymmetricPart { value }
+            | E::IsotropicLift { value } => {
                 let id = self.expression(value, depth + 1)?;
                 let ty = self.native.ty(id);
                 let (node, ty) = match expression {
@@ -257,6 +260,10 @@ impl Context<'_, '_> {
                     E::Divergence { .. } => {
                         (ExprNode::Divergence(id), typed(typing::divergence(ty))?)
                     }
+                    E::IsotropicLift { .. } => (
+                        ExprNode::IsotropicLift(id),
+                        typed(typing::isotropic_lift(ty))?,
+                    ),
                     _ => (
                         ExprNode::SymmetricPart(id),
                         typed(typing::symmetric_part(ty))?,
@@ -386,6 +393,7 @@ pub(super) fn children(value: &E) -> Vec<&E> {
         | E::TangentialTrace { value, .. }
         | E::Divergence { value }
         | E::SymmetricPart { value }
+        | E::IsotropicLift { value }
         | E::Sin { value }
         | E::Conjugate { value }
         | E::Component { value, .. }

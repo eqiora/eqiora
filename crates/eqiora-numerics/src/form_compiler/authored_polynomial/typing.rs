@@ -106,6 +106,9 @@ impl Context<'_> {
                     vec![3]
                 })
             }
+            E::SymmetricPart { .. } | E::IsotropicLift { .. } | E::Divergence { .. } => {
+                self.physical_shape(value, depth + 1)
+            }
             E::Curl { .. } | E::Cross { .. } => {
                 let definition = self.oriented_definition(value, depth + 1)?;
                 let rule = definition.result_rule();

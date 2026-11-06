@@ -309,6 +309,11 @@ in saved forms; model Parameters retain their identities. Channel arrays are not
 spatial coefficients. This does not add support to constant-only `trace` or
 `normal` operands: those operations still require their existing spatial support.
 
+Source projections retain native `symmetric_part`, `isotropic_lift`, and `div`
+operators. Exact component comparison expands symmetric tensors, scalar isotropic
+lifts, and direct vector-field divergences in two and three Cartesian dimensions,
+checking physical shape, frame and support before cancellation.
+
 Authored weak forms retain `curl`, `cross`, `normal`, and `tangential_trace` as typed
 operators. Trace, normal and tangential trace accept the same exact `on`/`from`
 selectors; their retained target must equal the integral support. H(div) tests
