@@ -46,6 +46,7 @@ fn model_and_form_tangential_pairings_match_independent_oriented_boundary_rows()
                 field: &field,
                 dimensions,
                 remaining: 65536,
+                test_dimension: eqiora_core::DimExponents::DIMENSIONLESS,
                 symbols: symbol_types(&program),
                 supports: field_supports(&program),
                 domains: domain_supports(&program),

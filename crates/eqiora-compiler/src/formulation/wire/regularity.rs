@@ -181,6 +181,7 @@ fn visit(
         E::Component { value, .. }
         | E::Variation { value, .. }
         | E::SymmetricPart { value }
+        | E::IsotropicLift { value }
         | E::Sin { value }
         | E::Pow { base: value, .. }
         | E::IntervalIntegral {

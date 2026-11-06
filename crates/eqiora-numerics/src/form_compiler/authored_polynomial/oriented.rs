@@ -36,7 +36,22 @@ impl Context<'_> {
     // admits operands on the trial's exact volume, before any cancellation.
     pub(super) fn physical_shape(&mut self, value: &E, depth: usize) -> Option<Vec<usize>> {
         self.step(depth)?;
-        let shape = self.shape(value, depth + 1)?;
+        let ty = self.retained_type(value, depth + 1)?;
+        if ty.value_type.array_rank() != 0 {
+            return None;
+        }
+        if let Some(support) = &ty.support
+            && (!matches!(support, eqiora_schema::kernel::typing::SpatialSupport::Volume { dimensions, .. } if *dimensions == self.dimensions)
+                || Some(support) != self.supports.get(self.field))
+        {
+            return None;
+        }
+        let shape = ty
+            .shape()
+            .extents()
+            .iter()
+            .map(|extent| extent.get() as usize)
+            .collect::<Vec<_>>();
         match value {
             E::Field { ulid } | E::TimeDerivative { field_ulid: ulid } => {
                 self.physical_field(ulid, &shape)?;
@@ -50,14 +65,18 @@ impl Context<'_> {
             E::Neg { value }
             | E::Conjugate { value }
             | E::Component { value, .. }
-            | E::Gradient { value } => {
+            | E::Gradient { value }
+            | E::SymmetricPart { value }
+            | E::IsotropicLift { value }
+            | E::Divergence { value } => {
                 self.physical_shape(value, depth + 1)?;
             }
             E::Add { left, right }
             | E::Sub { left, right }
             | E::Mul { left, right }
             | E::Dot { left, right }
-            | E::Inner { left, right } => {
+            | E::Inner { left, right }
+            | E::Div { left, right } => {
                 self.physical_shape(left, depth + 1)?;
                 self.physical_shape(right, depth + 1)?;
             }

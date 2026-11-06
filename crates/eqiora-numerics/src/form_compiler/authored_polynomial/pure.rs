@@ -3,6 +3,38 @@ use super::*;
 use eqiora_schema::kernel::pure_operator::{CalculusNode, PureOperatorDefinition};
 
 impl Context<'_> {
+    pub(super) fn structure_component(
+        &mut self,
+        expression: &E,
+        coordinate: &[usize],
+        depth: usize,
+    ) -> Option<Polynomial> {
+        let shape = self.shape(expression, depth + 1)?;
+        if shape.len() != coordinate.len() || shape.iter().zip(coordinate).any(|(n, i)| i >= n) {
+            return None;
+        }
+        let (definition, value) = match expression {
+            E::SymmetricPart { value } => (PureOperatorDefinition::symmetric_part().ok()?, value),
+            E::IsotropicLift { value } => (PureOperatorDefinition::isotropic_lift().ok()?, value),
+            _ => return None,
+        };
+        self.pure_component(
+            &definition,
+            coordinate,
+            depth + 1,
+            |context, formal, indices, depth| {
+                if formal != 0 {
+                    return None;
+                }
+                match indices {
+                    [] => context.scalar(value, depth),
+                    [i, j] => context.tensor(value, *i, *j, depth),
+                    _ => None,
+                }
+            },
+        )
+    }
+
     pub(super) fn pure_component(
         &mut self,
         definition: &PureOperatorDefinition,
@@ -46,3 +78,6 @@ impl Context<'_> {
         mapped.get(definition.root().index() as usize).cloned()
     }
 }
+
+#[cfg(test)]
+mod tests;
