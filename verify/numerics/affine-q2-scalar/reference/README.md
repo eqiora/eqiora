@@ -189,7 +189,11 @@ review and freezing before any candidate run.
 specified above. The frozen tables retain their original
 `candidate_comparator_implemented: false` generation metadata; no table endpoints
 or generation records were changed when adding the comparator. Production rule
-selection and candidate use still require the stated review.
+selection and candidate use still require the stated review. The production
+harness must authenticate the actual Plan, mesh, complete coefficient
+associations and effective quadrature selection. The comparator checks the
+supplied field; an input that declares `gauss_points: 4` does not prove which rule
+the production assembly used.
 
 Each input file is a JSON object with **exactly** these keys:
 
@@ -256,7 +260,9 @@ reference interval enlarged by the solve bound.
 Rates are emitted only for a complete, same-box N=2,4,8 set. Each rate has a measured
 continuous norm interval and an interval enlarged by the two independently
 computed total uncertainty bounds. The predeclared log2(1.001/0.999) bound is also
-reported. A failed comparison remains failed even when its rate looks plausible.
+reported. This bound measures deviation from the finite-grid reference rate,
+not from the asymptotic orders three and two or the width of the additionally
+enlarged interval. A failed comparison remains failed even when its rate looks plausible.
 Synthetic tests check arbitrary 3D polynomial coefficients against analytic full
 integrals, rational dense tensor application, exact single-node perturbation norms,
 complete-level rate propagation, budgets and malformed input. These tests use no
