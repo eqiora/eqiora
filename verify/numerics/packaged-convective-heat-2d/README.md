@@ -58,8 +58,9 @@ Transient convection, threaded CPU, MPI and GPU execution are not verified here.
 
 The native producer uses `EQIORA_ROBIN_PACKAGE_EVIDENCE` when supplied, otherwise
 creates a fresh directory below the user's home cache. The installed Python
-producer accepts `EQIORA_ROBIN_PACKAGE_PYTHON_EVIDENCE`; its test scratch must be
-home-backed. Each case retains authored source, the exact Model, Mesh, Plan and
+producer accepts `EQIORA_ROBIN_PACKAGE_PYTHON_EVIDENCE`; without an override it
+creates fresh scratch below the user's home cache, independently of pytest's
+temporary-directory configuration. Each case retains authored source, the exact Model, Mesh, Plan and
 Result, the strict oracle input and report, and a producer receipt. The package
 closure is saved as a native compilation record or a moved Python offline store.
 The receipt binds actual Field and Observable identities, boundary Domain IDs,

@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import numpy as np
 import pytest
@@ -46,9 +47,15 @@ def persist(path, data):
 
 
 @pytest.mark.parametrize("case,inputs", CASES)
-def test_imported_public_heat_observations_and_offline_replay(tmp_path, case, inputs):
+def test_imported_public_heat_observations_and_offline_replay(case, inputs):
     assert digest(ORACLE.read_bytes()) == ORACLE_SHA
-    root = Path(os.environ.get("EQIORA_ROBIN_PACKAGE_PYTHON_EVIDENCE", tmp_path))
+    configured = os.environ.get("EQIORA_ROBIN_PACKAGE_PYTHON_EVIDENCE")
+    if configured:
+        root = Path(configured)
+    else:
+        cache = Path.home() / ".cache" / "eqiora" / "packaged-robin-python"
+        cache.mkdir(parents=True, exist_ok=True)
+        root = Path(tempfile.mkdtemp(prefix=f"{case}-", dir=cache))
     assert root.is_absolute() and not root.is_relative_to("/tmp")
     directory = root / case
     directory.mkdir(parents=True)
