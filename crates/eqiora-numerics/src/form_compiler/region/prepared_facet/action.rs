@@ -39,6 +39,15 @@ impl<S: Coefficient, P: Projection<S, Scalar = f64>> PreparedRegionFacet<S, P> {
             },
             residual: self.affine.rhs().iter().map(|value| -*value).collect(),
         };
+        for row in 0..count {
+            for column in 0..count {
+                let entry = self.affine.matrix()[row * count + column];
+                action.residual[row] += entry * point[column];
+                if let Some(weight) = pullback.and_then(|p| p.weight(column, false)) {
+                    action.jacobian[row * count + column] += entry * weight;
+                }
+            }
+        }
         let physical = P::physical_point(&self.fields, &self.coordinates, point);
         let dimension = self.normal.len();
         let test_width = P::width(&self.fields[self.row].value_type)?;

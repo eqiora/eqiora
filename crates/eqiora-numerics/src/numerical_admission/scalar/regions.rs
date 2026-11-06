@@ -555,8 +555,10 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 for law in laws.values().filter(|law| {
                     law.quantity != crate::canonical_boundary::PhysicalBoundaryQuantity::Trace
                 }) {
-                    let minimum =
-                        form.minimum_natural_gauss_points(field, law.polynomial_degree())?;
+                    let minimum = form.minimum_natural_gauss_points(
+                        field,
+                        law.facet_datum_degree(form, field),
+                    )?;
                     if quadrature.is_some() && points < minimum {
                         return Err(invalid(
                             "assembly quadrature underintegrates the prescribed polynomial facet datum",

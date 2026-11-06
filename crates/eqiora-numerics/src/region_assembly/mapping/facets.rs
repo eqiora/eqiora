@@ -13,6 +13,48 @@ pub(crate) fn prepare_mesh_facet<'mesh, S: Coefficient>(
     datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
     datum_degree: Option<usize>,
 ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
+    prepare_mesh_affine_facet(
+        mesh,
+        form,
+        field,
+        facet,
+        parent,
+        datum,
+        (datum_degree, None),
+    )
+}
+
+pub(crate) fn prepare_mesh_boundary_facet<'mesh, S: Coefficient>(
+    mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+    form: &BoundRegionForm<S>,
+    field: RawId,
+    facet: MeshEntity,
+    parent: EntityIncidence,
+    law: &crate::form_compiler::region::RegionBoundaryLaw<S>,
+) -> Result<PreparedRegionFacet<S>, Diagnostic> {
+    prepare_mesh_affine_facet(
+        mesh,
+        form,
+        field,
+        facet,
+        parent,
+        |point, normal| law.evaluate(point, normal),
+        (law.facet_datum_degree(form, field), law.robin_coefficient()),
+    )
+}
+
+fn prepare_mesh_affine_facet<'mesh, S: Coefficient>(
+    mesh: &'mesh impl MeshGeometry<Map<'mesh> = AffineGeometryMap>,
+    form: &BoundRegionForm<S>,
+    field: RawId,
+    facet: MeshEntity,
+    parent: EntityIncidence,
+    datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+    (datum_degree, robin): (
+        Option<usize>,
+        Option<&crate::form_compiler::region::Data<S>>,
+    ),
+) -> Result<PreparedRegionFacet<S>, Diagnostic> {
     let cell = mesh
         .geometry_map(parent.entity)
         .ok_or_else(|| invalid("facet has no parent geometry"))?;
@@ -34,13 +76,13 @@ pub(crate) fn prepare_mesh_facet<'mesh, S: Coefficient>(
                 .ok_or_else(|| invalid("facet vertex is absent from its parent"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    form.prepare_natural_facet(
+    form.prepare_affine_facet(
         field,
         &cell,
         (&geometry, parent, &positions),
         &form.natural_facet_quadrature(field, datum_degree)?,
         datum,
-        datum_degree,
+        (datum_degree, robin),
     )
 }
 

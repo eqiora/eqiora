@@ -108,6 +108,33 @@ pub(crate) fn admit(
     }
     let mut right = right.unwrap_or(AuthoredFormExpressionV1::Number { value: 0.0 });
     for boundary in &derived.boundary_roles {
+        if let Some((alpha, trace)) = boundary.robin {
+            let typed = typed_relation(program, boundary.relation)?;
+            let coefficient = AuthoredFormExpressionV1::from_expression(typed.expression(), alpha)?
+                .ok_or_else(|| {
+                    rejection_with(projection, "Robin coefficient exceeds scalar projection")
+                })?;
+            let trial = AuthoredFormExpressionV1::from_expression(typed.expression(), trace)?
+                .ok_or_else(|| {
+                    rejection_with(projection, "Robin trace exceeds scalar projection")
+                })?;
+            left = AuthoredFormExpressionV1::Add {
+                left: Box::new(left),
+                right: Box::new(AuthoredFormExpressionV1::Integrate {
+                    domain_ulid: boundary.domain.ulid().to_string(),
+                    integrand: Box::new(AuthoredFormExpressionV1::Mul {
+                        left: Box::new(conjugate(AuthoredFormExpressionV1::Trace {
+                            on_ulid: boundary.domain.ulid().to_string(),
+                            value: Box::new(test.clone()),
+                        })),
+                        right: Box::new(AuthoredFormExpressionV1::Mul {
+                            left: Box::new(coefficient),
+                            right: Box::new(trial),
+                        }),
+                    }),
+                }),
+            };
+        }
         let Some((datum, negative)) = boundary.flux_data else {
             continue;
         };

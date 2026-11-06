@@ -138,7 +138,20 @@ impl<S: Coefficient> BoundRegionForm<S> {
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
         datum_degree: Option<usize>,
     ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
-        let affine = self.evaluate_natural_facet(field, cell, facet, rule, datum, datum_degree)?;
+        self.prepare_affine_facet(field, cell, facet, rule, datum, (datum_degree, None))
+    }
+
+    pub(crate) fn prepare_affine_facet(
+        &self,
+        field: RawId,
+        cell: &AffineGeometryMap,
+        facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
+        rule: &QuadratureRule,
+        datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        (datum_degree, robin): (Option<usize>, Option<&super::Data<S>>),
+    ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
+        let affine =
+            self.evaluate_affine_facet(field, cell, facet, rule, datum, (datum_degree, robin))?;
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
         let row = self
@@ -327,16 +340,6 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionFacet<S, P> {
 impl<S: Coefficient> PreparedRegionFacet<S> {
     /// Reuse the physical trace samples and project only their numerical storage.
     pub(crate) fn project<P: Projection<S>>(self) -> Result<PreparedRegionFacet<S, P>, Diagnostic> {
-        if self
-            .affine
-            .matrix()
-            .iter()
-            .any(|value| *value != <S as From<f64>>::from(0.))
-        {
-            return Err(invalid(
-                "natural facet projection requires a load without a trial matrix",
-            ));
-        }
         let mut rhs = Vec::new();
         for field in &self.fields {
             rhs.extend(super::coordinates::values::<S, P>(
@@ -344,16 +347,31 @@ impl<S: Coefficient> PreparedRegionFacet<S> {
                 &self.affine.rhs()[field.range.clone()],
             )?);
         }
-        let entries = rhs
-            .len()
-            .checked_mul(rhs.len())
-            .ok_or_else(|| invalid("projected facet matrix dimensions overflow"))?;
-        let affine = LocalContribution::new(
-            rhs.len(),
-            rhs.len(),
-            vec![<P::Scalar as From<f64>>::from(0.); entries],
-            rhs,
-        )?;
+        let count = rhs.len();
+        let source_count = self.affine.rows();
+        let mut matrix = vec![<P::Scalar as From<f64>>::from(0.); count * count];
+        let ranges = P::ranges(&self.fields)?;
+        for (r, row) in self.fields.iter().enumerate() {
+            let rw = P::width(&row.value_type)?;
+            for (c, column) in self.fields.iter().enumerate() {
+                let cw = P::width(&column.value_type)?;
+                for a in 0..row.range.len() {
+                    for b in 0..column.range.len() {
+                        let value = self.affine.matrix()
+                            [(row.range.start + a) * source_count + column.range.start + b];
+                        for i in 0..rw {
+                            for j in 0..cw {
+                                matrix[(ranges[r].start + a * rw + i) * count
+                                    + ranges[c].start
+                                    + b * cw
+                                    + j] = P::component(value * P::direction(j), i);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let affine = LocalContribution::new(count, count, matrix, rhs)?;
         Ok(PreparedRegionFacet {
             domain: self.domain,
             parent: self.parent,

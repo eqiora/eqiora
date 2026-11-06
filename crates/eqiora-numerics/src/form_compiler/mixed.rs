@@ -137,6 +137,36 @@ fn resolve_typed<S: Coefficient>(
             .values()
             .filter(|law| law.quantity == PhysicalBoundaryQuantity::Flux)
         {
+            if let (Some(alpha), Some(trial)) =
+                (law.robin_coefficient_expression, law.robin_trace_expression)
+            {
+                let boundary_typed = typed_relation(program, law.binding.relation())?;
+                let coefficient = E::from_expression(boundary_typed.expression(), alpha)?
+                    .ok_or_else(|| reject("Robin coefficient exceeds shared projection"))?;
+                let trial = E::from_expression(boundary_typed.expression(), trial)?
+                    .ok_or_else(|| reject("Robin trial trace exceeds shared projection"))?;
+                let boundary = law.binding.boundary().ulid().to_string();
+                let integrand = weak::pair(
+                    E::Trace {
+                        value: Box::new(test.clone()),
+                        on_ulid: boundary.clone(),
+                    },
+                    E::Mul {
+                        left: Box::new(coefficient),
+                        right: Box::new(trial),
+                    },
+                    value_type.shape().rank(),
+                    conjugated,
+                )
+                .ok_or_else(|| reject("Robin pairing requires scalar traces"))?;
+                expected = E::Add {
+                    left: Box::new(expected),
+                    right: Box::new(E::Integrate {
+                        domain_ulid: boundary,
+                        integrand: Box::new(integrand),
+                    }),
+                };
+            }
             let Some(datum) = law.datum_expression else {
                 continue;
             };

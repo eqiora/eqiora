@@ -200,6 +200,9 @@ fn recognize_exterior_law_oriented(
         (None, Some(normal), Some((robin, coefficient_expression, trace_expression)))
             if normal_sign == Some(robin.sign()) =>
         {
+            let _ = affine_robin_terms(expression, &view, field)?.ok_or_else(|| {
+                view.mismatch("Robin requires one exact affine conormal equation")
+            })?;
             let coefficient = spatial_expression::lower::<f64>(
                 program,
                 expression,
@@ -323,4 +326,66 @@ fn physical_conormal_orientation(
         relation,
         "boundary flux differs from the exact physical Law constitutive coefficient",
     ))
+}
+
+/// Exact affine conormal decomposition, shared with Region FEM admission.
+/// Numerical methods retain their own coefficient and capability restrictions.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AffineRobinTerms {
+    pub(crate) normal: ExprId,
+    pub(crate) coefficient: ExprId,
+    pub(crate) trace: ExprId,
+    pub(crate) datum: Option<ExprId>,
+    pub(crate) datum_negative: bool,
+}
+
+pub(crate) fn affine_robin_terms(
+    expression: &ExprDag,
+    view: &AdditiveResidualView,
+    field: RawId,
+) -> Result<Option<AffineRobinTerms>, Diagnostic> {
+    let coefficients = view
+        .leaves()
+        .iter()
+        .filter_map(|leaf| {
+            robin_coefficient(expression, leaf.value(), field)
+                .map(|(coefficient, trace)| (leaf, coefficient, trace))
+        })
+        .collect::<Vec<_>>();
+    let [(robin, coefficient, trace)] = coefficients.as_slice() else {
+        return Ok(None);
+    };
+    let normals = view
+        .leaves()
+        .iter()
+        .filter(|leaf| {
+            matches!(
+                expression.node(leaf.value()),
+                Some(ExprNode::NormalComponent { .. })
+            )
+        })
+        .collect::<Vec<_>>();
+    let [normal] = normals.as_slice() else {
+        return Ok(None);
+    };
+    if normal.sign() != robin.sign() {
+        return Err(view.mismatch("Robin trace and conormal must have the same sign"));
+    }
+    let values = view
+        .leaves()
+        .iter()
+        .filter(|leaf| leaf.value() != normal.value() && leaf.value() != robin.value())
+        .collect::<Vec<_>>();
+    let datum = match values.as_slice() {
+        [] => None,
+        [datum] => Some((datum.value(), datum.sign() == normal.sign())),
+        _ => return Err(view.mismatch("Robin data must be one prescribed expression")),
+    };
+    Ok(Some(AffineRobinTerms {
+        normal: normal.value(),
+        coefficient: *coefficient,
+        trace: *trace,
+        datum: datum.map(|(id, _)| id),
+        datum_negative: datum.is_some_and(|(_, negative)| negative),
+    }))
 }

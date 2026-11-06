@@ -409,6 +409,7 @@ pub(super) fn recognize_essential_trace(
 pub(super) struct BoundaryFlux {
     pub(super) normal: ExprId,
     pub(super) datum: Option<(ExprId, bool)>,
+    pub(super) robin: Option<(ExprId, ExprId)>,
 }
 
 /// Bind the complete constitutive flux before retaining its prescribed datum.
@@ -421,14 +422,21 @@ pub(super) fn recognize_flux(
     parent: RawId,
     volume: &eqiora_schema::kernel::typing::TypedResidual<RawId>,
     volume_nodes: &VolumeNodes,
+    field: RawId,
 ) -> Result<Option<BoundaryFlux>, Diagnostic> {
     use eqiora_compiler::AuthoredFormExpressionV1 as Expression;
     let dag = boundary.expression();
     let [root] = dag.roots() else {
         return Ok(None);
     };
-    let view = crate::additive_residual::AdditiveResidualView::derive(dag, *root, owner)?;
-    if !(1..=2).contains(&view.leaves().len()) {
+    let view = crate::additive_residual::AdditiveResidualView::derive_preserving(
+        dag,
+        *root,
+        owner,
+        &|id| validate_source_expression(dag, id, owner).is_ok(),
+    )?;
+    let robin = crate::scalar_conservation::affine_robin_terms(dag, &view, field)?;
+    if !(1..=if robin.is_some() { 3 } else { 2 }).contains(&view.leaves().len()) {
         return Ok(None);
     }
     let operators = view
@@ -466,10 +474,20 @@ pub(super) fn recognize_flux(
     if !super::authored::equivalent(&actual, &expected) {
         return Ok(None);
     }
+    if let Some(robin) = robin {
+        validate_source_expression(dag, robin.coefficient, owner)?;
+        // The Robin contract is for the positive weak conormal only.
+        if actual_negative ^ volume_negative ^ (volume_nodes.divergence_sign == WeakSign::Negative)
+        {
+            return Ok(None);
+        }
+    }
     let data = view
         .leaves()
         .iter()
-        .find(|leaf| leaf.value() != operator.value())
+        .find(|leaf| leaf.value() != operator.value()
+            && !matches!(dag.node(leaf.value()), Some(ExprNode::Mul(a,b))
+                if robin.is_some_and(|r| (*a==r.coefficient && *b==r.trace) || (*b==r.coefficient && *a==r.trace))))
         .map(|datum| {
             validate_source_expression(dag, datum.value(), owner)?;
             // a*n(F)+b*g=0 => n(F)=-(b/a)g. Convert F to the weak flux.
@@ -483,6 +501,7 @@ pub(super) fn recognize_flux(
     Ok(Some(BoundaryFlux {
         normal: operator.value(),
         datum: data,
+        robin: robin.map(|r| (r.coefficient, r.trace)),
     }))
 }
 

@@ -52,6 +52,7 @@ struct BoundaryRole {
     operator_node: ExprId,
     discharge: BoundaryDischarge,
     flux_data: Option<(ExprId, bool)>,
+    robin: Option<(ExprId, ExprId)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -492,6 +493,7 @@ fn boundary_inventory(
         }
         let relation = relations[0];
         let typed = typed_relation(program, relation)?;
+        let mut robin = None;
         let (operator_node, discharge, flux_data) =
             if let Some(nodes) = recognize_essential_trace(typed.expression(), relation, field)? {
                 (nodes.trace, BoundaryDischarge::ZeroTestTrace, None)
@@ -502,10 +504,12 @@ fn boundary_inventory(
                 parent,
                 volume,
                 volume_nodes,
+                field,
             )? {
+                robin = flux.robin;
                 (
                     flux.normal,
-                    if flux.datum.is_some() {
+                    if flux.datum.is_some() || flux.robin.is_some() {
                         BoundaryDischarge::PrescribedFlux
                     } else {
                         BoundaryDischarge::ZeroFlux
@@ -524,6 +528,7 @@ fn boundary_inventory(
             operator_node,
             discharge,
             flux_data,
+            robin,
         };
         if by_side.insert((axis, side), role).is_some() {
             return Err(role_error(

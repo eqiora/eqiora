@@ -178,14 +178,8 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
                             } else {
                                 natural.push((
                                     parent.entity.index(),
-                                    crate::region_assembly::mapping::prepare_mesh_facet(
-                                        mesh,
-                                        form,
-                                        *field,
-                                        facet,
-                                        *parent,
-                                        |point, normal| law.evaluate(point, normal),
-                                        law.polynomial_degree(),
+                                    crate::region_assembly::mapping::prepare_mesh_boundary_facet(
+                                        mesh, form, *field, facet, *parent, law,
                                     )?,
                                 ));
                             }
