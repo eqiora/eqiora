@@ -38,6 +38,7 @@ pub(in crate::numerical_admission) fn check(plan: &CommonSpatialPlan) {
     let before = count();
     let result = plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap();
     assert_eq!(count() - before, 1, "live execution must finalize once");
+    check_attribution(plan, &result);
     let before = count();
     assert_eq!(
         crate::CommonResult::from_bytes(&result.to_bytes().unwrap(), result.plan()).unwrap(),
@@ -118,4 +119,120 @@ pub(in crate::numerical_admission) fn check_initial(
             .contains("initial residual")
     );
     assert!(LiveStaticExecution::execute(plan, Some(foreign), &REFERENCE_LINEAR_SOLVER).is_err());
+}
+
+// Observe real execution rather than asserting a global callsite inventory.
+fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
+    use std::sync::{Arc, Mutex};
+    use tracing::{Id, Metadata, Subscriber, field::Visit, span};
+
+    #[derive(Default)]
+    struct Capture {
+        spans: Vec<(String, Option<u64>)>,
+        stack: Vec<u64>,
+    }
+    #[derive(Clone)]
+    struct Recorder(Arc<Mutex<Capture>>);
+    #[derive(Default)]
+    struct Phase(String);
+    impl Visit for Phase {
+        fn record_debug(&mut self, _: &tracing::field::Field, _: &dyn std::fmt::Debug) {}
+        fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+            if field.name() == "phase" {
+                self.0 = value.to_owned();
+            }
+        }
+    }
+    impl Subscriber for Recorder {
+        fn enabled(&self, _: &Metadata<'_>) -> bool {
+            true
+        }
+        fn new_span(&self, attrs: &span::Attributes<'_>) -> Id {
+            let mut phase = Phase::default();
+            attrs.record(&mut phase);
+            let mut capture = self.0.lock().unwrap();
+            let parent = attrs.parent().map(Id::into_u64).or_else(|| {
+                attrs
+                    .is_contextual()
+                    .then(|| capture.stack.last().copied())
+                    .flatten()
+            });
+            capture.spans.push((phase.0, parent));
+            Id::from_u64(capture.spans.len() as u64)
+        }
+        fn record(&self, _: &Id, _: &span::Record<'_>) {}
+        fn record_follows_from(&self, _: &Id, _: &Id) {}
+        fn event(&self, _: &tracing::Event<'_>) {}
+        fn enter(&self, id: &Id) {
+            self.0.lock().unwrap().stack.push(id.into_u64());
+        }
+        fn exit(&self, id: &Id) {
+            assert_eq!(self.0.lock().unwrap().stack.pop(), Some(id.into_u64()));
+        }
+    }
+    let capture = Arc::new(Mutex::new(Capture::default()));
+    let profiled = tracing::subscriber::with_default(Recorder(capture.clone()), || {
+        let _solve = eqiora_execution::telemetry_span!(solve(0_u64)).entered();
+        plan.run_result(None, &REFERENCE_LINEAR_SOLVER).unwrap()
+    });
+    assert_eq!(profiled.field_count(), plain.field_count());
+    for field in 0..plain.field_count() {
+        assert_eq!(profiled.field(field), plain.field(field));
+        assert_eq!(
+            profiled.field_block_count(field),
+            plain.field_block_count(field)
+        );
+        for block in 0..plain.field_block_count(field) {
+            assert_eq!(
+                profiled.field_block(field, block),
+                plain.field_block(field, block)
+            );
+        }
+    }
+    let capture = capture.lock().unwrap();
+    let find = |name: &str| {
+        let matches: Vec<_> = capture
+            .spans
+            .iter()
+            .enumerate()
+            .filter(|(_, (phase, _))| phase == name)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "one {name} scope in this ordinary scalar execution"
+        );
+        matches[0]
+    };
+    let (solve, _) = find("solve");
+    let (acceptance, _) = find("scalar_live_acceptance");
+    assert_eq!(find("scalar_live_acceptance").1.1, Some(solve as u64 + 1));
+    for child in [
+        "scalar_result_packing",
+        "scalar_live_validation",
+        "scalar_result_publication",
+    ] {
+        assert_eq!(
+            find(child).1.1,
+            Some(acceptance as u64 + 1),
+            "{child} belongs to live acceptance"
+        );
+    }
+    for phase in [
+        "scalar_plan_reauthentication",
+        "scalar_structure_preflight",
+        "scalar_problem_preparation",
+        "scalar_linear_request",
+        "scalar_solution_validation",
+        "scalar_coordinate_recovery",
+    ] {
+        assert_eq!(
+            find(phase).1.1,
+            find("scalar_live_acceptance").1.1,
+            "{phase} precedes acceptance"
+        );
+    }
+    let (request, _) = find("scalar_linear_request");
+    assert_eq!(find("linear_solve").1.1, Some(request as u64 + 1));
+    assert!(capture.stack.is_empty(), "all scopes close after execution");
 }
