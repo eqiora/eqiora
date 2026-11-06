@@ -32,12 +32,8 @@ fn assert_temperatures(
             .len(),
         9
     );
-    let mesh = plan
-        .authenticated_mesh()
-        .unwrap()
-        .cartesian_mesh()
-        .unwrap()
-        .mesh();
+    let owner = plan.authenticated_mesh().unwrap();
+    let mesh = owner.cartesian_mesh().unwrap().mesh();
     for (entity, value) in fields[0].2.iter().zip(fields[0].3) {
         let point = mesh.vertex_coordinates(*entity).unwrap();
         assert!(value.is_finite());
@@ -103,12 +99,8 @@ fn imported_transient_heat_matches_independent_mass_stiffness_load_and_replays()
                 .state_fields(output.state())
                 .unwrap()
                 .collect::<Vec<_>>();
-            let mesh = plan
-                .authenticated_mesh()
-                .unwrap()
-                .cartesian_mesh()
-                .unwrap()
-                .mesh();
+            let owner = plan.authenticated_mesh().unwrap();
+            let mesh = owner.cartesian_mesh().unwrap().mesh();
             let center = fields[0]
                 .2
                 .iter()
