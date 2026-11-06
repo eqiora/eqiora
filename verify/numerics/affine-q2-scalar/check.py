@@ -61,13 +61,14 @@ def run(args, directory, state):
     values.update(pi_value=math.pi, source_scale=math.pi**2*sum(1./length**2 for length in lengths))
     model = eqiora.compile(source=authored, filename="affine-q2-sine.eqi", entry="AffineQ2Sine", geometry=geometry,
                            bindings={"body": geometry.selection("body"), **{name: (geometry.selection(name), geometry.selection("body")) for name in names}, **values})
-    field = model.field("u")
+    field = model.field("definition.u")
     plan = eqiora.resolve(model, mesh=mesh, spatial=eqiora.fem.Q2(), quadrature=eqiora.fem.GaussLegendre(4),
                           solve=eqiora.solve.Linear(algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
                                                    preconditioner=eqiora.solve.Preconditioner.Identity,
                                                    reduction=eqiora.solve.Reduction.Reproducible,
                                                    provider=eqiora.solve.SolverProvider.reference(),
                                                    relative_tolerance=1e-13, absolute_tolerance=1e-14, maximum_iterations=100000))
+    require(plan.fields == (field,), "source-selected field differs from actual Plan inventory")
     require(plan.mesh_digest == mesh.digest, "resolve did not retain the actual caller Mesh")
     require(plan.execution.workers == 1 and plan.execution.placement == "host-serial", "unexpected actual execution policy")
     original_plan = plan.to_bytes()

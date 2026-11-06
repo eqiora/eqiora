@@ -1184,9 +1184,9 @@ fn dedicated_transient_fvm_rejects_assembly_quadrature_override_before_execution
             points_per_axis: NonZeroUsize::new(4).unwrap(),
         },
     ] {
-        let error = resolve(Some(quadrature))
-            .err()
-            .expect("dedicated FVM cannot silently consume FEM integration controls");
+        let Err(error) = resolve(Some(quadrature)) else {
+            panic!("dedicated FVM cannot silently consume FEM integration controls");
+        };
         assert!(
             error.message().contains("assembly quadrature override"),
             "{error:?}"
