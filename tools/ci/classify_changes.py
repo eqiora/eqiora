@@ -313,7 +313,9 @@ def impact_plan(
             selected["msrv"] = True
             owning_inputs["msrv"].add(path)
         if (
-            path.startswith(("bindings/python/", "crates/eqiora-python/"))
+            path.startswith(
+                ("bindings/python/", "crates/eqiora-python/", "crates/eqiora-numerics/")
+            )
             or jupyter_build_input(path)
             or public_facade_path(path)
         ):
