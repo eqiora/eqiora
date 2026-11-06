@@ -31,8 +31,16 @@ pub(crate) fn validate_resources(
         }
         (
             NativeSpatialPolicy::FiniteElement(request),
-            resources @ NativeMeshResources::MshSimplicial { geometry, mesh, .. },
-        ) if ((geometry.region().is_some() && mesh.dimension() == 2)
+            resources @ NativeMeshResources::MshSimplicial {
+                geometry,
+                mesh,
+                policy,
+                ..
+            },
+        ) if (((geometry.region().is_some()
+            || (matches!(policy, MshSourcePolicy::External(_))
+                && geometry.planar_rectangle_bounds().is_some()))
+            && mesh.dimension() == 2)
             || (geometry.polyhedral_vertices().is_some() && mesh.dimension() == 3))
             && (request.policies().all(|policy| {
                 matches!(
@@ -202,9 +210,12 @@ pub(crate) fn derive_msh_resources(
                     "external MSH source exceeds the declared byte limit",
                 ));
             }
-            if geometry.region().is_none() && geometry.polyhedral_vertices().is_none() {
+            if geometry.region().is_none()
+                && geometry.polyhedral_vertices().is_none()
+                && geometry.planar_rectangle_bounds().is_none()
+            {
                 return Err(invalid(
-                    "external MSH import requires planar-region or convex-polyhedral Geometry",
+                    "external MSH import requires planar-region, exact-rectangle or convex-polyhedral Geometry",
                 ));
             }
             (
@@ -232,6 +243,28 @@ pub(crate) fn derive_msh_resources(
         let definition = eqiora_artifact::GeometryDefinitionV1::from_canonical(&geometry)?;
         let correspondence =
             GeometryMeshCorrespondenceEnvelopeV1::from_polyhedra(&definition, &mesh)?;
+        (mesh, correspondence)
+    } else if matches!(source_policy, MshSourcePolicy::External(_))
+        && geometry.planar_rectangle_bounds().is_some()
+    {
+        let imported = import_msh41(
+            &provider_output,
+            Msh41Policy::mesh(2, quality)?,
+            |_, _, _| {},
+        )?;
+        let boundary_facets = (0..imported.entity_count(1).unwrap_or(0))
+            .filter(|&i| imported.is_boundary_entity(MeshEntity::new(1, i)) == Some(true))
+            .count();
+        if boundary_facets > maximum_boundary_facets {
+            return Err(invalid(
+                "planar mesh exceeds the declared boundary facet budget",
+            ));
+        }
+        let mesh = SimplicialMeshEnvelopeV1::from_mesh(&imported)?;
+        let correspondence =
+            GeometryMeshCorrespondenceEnvelopeV1::from_planar_rectangle_v2_simplicial(
+                &geometry, &mesh,
+            )?;
         (mesh, correspondence)
     } else if geometry.region().is_some() {
         let imported = import_msh41(

@@ -15,6 +15,9 @@ use crate::{
     GeometryDecoderLimits, MeshDecoderLimits, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
+mod imported;
+
+const SIMPLICIAL_IMPORT_SOURCE: &str = "planar-rectangle-v2-simplicial-import-v1";
 const CARTESIAN_SOURCE: &str = "planar-rectangle-v2-cartesian-v1";
 const AFFINE_TRIANGLE_SOURCE: &str = "planar-rectangle-v2-affine-triangle-v1";
 const SOURCE_EDGE_COUNT: usize = 4;
@@ -623,7 +626,7 @@ impl WirePlanarRectangleV2CorrespondenceV1 {
             || self.encoding != CANONICAL_ENCODING
             || !matches!(
                 self.source.as_str(),
-                CARTESIAN_SOURCE | AFFINE_TRIANGLE_SOURCE
+                CARTESIAN_SOURCE | AFFINE_TRIANGLE_SOURCE | SIMPLICIAL_IMPORT_SOURCE
             )
             || self.dimension != 2
         {

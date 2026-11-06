@@ -6,7 +6,8 @@ original bytes, explicit coordinate units, import limits, exact Geometry, cells
 and complete Geometry correspondence. It does not record a target mesh size or
 claim a generator release ran.
 
-The first profile admits MSH 4.1 affine triangles on planar regions and affine
+The first profile admits MSH 4.1 affine triangles on planar regions, including
+existing exact rectangle Geometry v2, and affine
 tetrahedra on convex polyhedra. Cells remain as supplied. It shares the bounded
 MSH parser, quality gate and correspondence derivation with the existing provider
 observation path. Both dimensions enforce the requested boundary-facet budget.
@@ -41,6 +42,14 @@ replay rejects inconsistent source, unit, policy or accepted-resource substituti
 A coherent valid new source or policy is a new occurrence with its own identity. A change that
 cannot preserve those existing semantics requires revisiting this decision
 before implementation.
+
+Exact rectangle import retains its original Geometry identity. It derives
+correspondence under a distinct `planar-rectangle-v2-simplicial-import-v1` source
+inside the existing correspondence envelope. All vertices must lie within the
+exact rectangle, and positive boundary intervals must cover each canonical side
+once with exact endpoints and adjacency. Classification tolerance is explicitly
+zero. No synthetic PlanarRegion or coordinate-based Geometry rewrite is used.
+Existing Cartesian and generated-triangle correspondence encodings stay fixed.
 
 ## Independent expectations committed before implementation
 
