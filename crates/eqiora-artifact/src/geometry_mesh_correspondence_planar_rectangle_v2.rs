@@ -15,6 +15,7 @@ use crate::{
     GeometryDecoderLimits, MeshDecoderLimits, SimplicialMeshEnvelopeV1, invalid_artifact,
 };
 
+#[path = "geometry_mesh_correspondence_planar_rectangle_v2/imported.rs"]
 mod imported;
 
 const SIMPLICIAL_IMPORT_SOURCE: &str = "planar-rectangle-v2-simplicial-import-v1";
