@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import shared_campaign as campaign
 import shared_measurement as measurement
 from shared_measurement import ComparisonError
 from accuracy import check_accuracy
@@ -180,7 +181,7 @@ class BenchmarkTests(unittest.TestCase):
                 self.finish_case(target, dimension=dimension, cells=cells, tool=tool, mode=mode)
                 return SimpleNamespace(returncode=0)
             with patch("sys.argv", self.driver_arguments(output)), patch.object(driver.os, "sched_setaffinity"), \
-                    patch.object(driver.subprocess, "run", worker), redirect_stdout(io.StringIO()):
+                    patch.object(campaign.subprocess, "run", worker), redirect_stdout(io.StringIO()):
                 self.assertEqual(driver.main(), 0)
             self.assertEqual([(Path(row[2]).stem, int(row[row.index("--cells")+1])) for row in commands],
                              [("eqiora_case", 4), ("fenicsx_case", 4), ("fenicsx_case", 8),
@@ -196,7 +197,7 @@ class BenchmarkTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "campaign"
             with patch("sys.argv", self.driver_arguments(output, levels=[4, 32])), \
-                    patch.object(driver.subprocess, "run") as worker, redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    patch.object(campaign.subprocess, "run") as worker, redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 driver.main()
             worker.assert_not_called()
             self.assertFalse(output.exists())
@@ -204,7 +205,7 @@ class BenchmarkTests(unittest.TestCase):
                 kwargs["stdout"].write("required_reference_linear_solve_phase_unavailable\n")
                 return SimpleNamespace(returncode=2)
             with patch("sys.argv", self.driver_arguments(output)), patch.object(driver.os, "sched_setaffinity"), \
-                    patch.object(driver.subprocess, "run", failed_worker), redirect_stdout(io.StringIO()):
+                    patch.object(campaign.subprocess, "run", failed_worker), redirect_stdout(io.StringIO()):
                 self.assertEqual(driver.main(), 2)
             self.assertFalse((output / "summary.json").exists())
             failure = json.loads((output / "failure.json").read_text())
