@@ -232,6 +232,9 @@ jobs:
       - name: Keep Stable builds non-incremental
         if: needs.changes.outputs.rust == 'true'
         run: echo 'CARGO_INCREMENTAL=0' >> "$GITHUB_ENV"
+      - name: Prepare Stable Rust disk capacity
+        if: needs.changes.outputs.rust == 'true'
+        run: python3 tools/ci/prepare_rust_disk.py
       - name: Record disk use before Clippy
         if: needs.changes.outputs.rust == 'true'
         run: |
@@ -444,7 +447,7 @@ jobs:
     name: Python ${{ matrix.python }} installed wheel
     needs: changes
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:

@@ -243,6 +243,14 @@ does not establish optional native-backend or scientific claims.
   and after Clippy, Rust tests and documentation. Post-phase observations run
   after failures too. Use hosted measurements to assess disk pressure; disabling
   dev incremental state has not yet been shown to prevent disk exhaustion.
+- Before Clippy, Stable's [disk preflight](../../tools/ci/prepare_rust_disk.py)
+  requires a GitHub-hosted Linux runner and reports free bytes and the presence
+  and allocated sizes of the unused Android and .NET SDK roots. Below 32 GiB
+  free it removes only those roots, rechecks capacity and fails early if the
+  floor is still unmet. The floor leaves headroom over the
+  [largest reported post-phase target tree, 21.69 GB](https://github.com/eqiora/eqiora/actions/runs/42162511212/job/127711439042);
+  it does not guarantee future workloads fit. SDK presence and any capacity gain
+  must be established from each hosted run's measurements.
 - The quality job retains Cargo's HTML build-timing reports for seven days,
   including per-crate compilation and scheduling. Use reports from the same
   hosted profile to investigate build cost before changing optimization or caches.
@@ -252,6 +260,9 @@ does not establish optional native-backend or scientific claims.
   candidate. Installed-wheel product tests remain in the Python version matrix;
   the release-candidate workflow retains the complete artifact-family validation
   before publication. CI definition trust and release trust checks are unchanged.
+- Installed Python wheel jobs have a 40-minute limit. This leaves bounded margin
+  for native dependency setup and the existing build and tests when package
+  downloads are slow; it does not change their commands or coverage.
 - Pages builds only the Rust executables and Rustdoc consumed by site generation.
   Its temporary CLI and facade-check executables use the unoptimized development
   profile without debug information or incremental output: their consumers inspect
