@@ -1,5 +1,8 @@
 """Isolated child collection shared by external comparison problems."""
 from dataclasses import dataclass
+from datetime import datetime, timezone
+import hashlib
+from pathlib import Path
 import re
 import json
 import os
@@ -33,6 +36,13 @@ def collect_reports(args, cases, *, problem_root):
         labels.add(case.label)
     if not cases:
         raise ComparisonError("comparison requires at least one case")
+    harness_revision = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+    harness_dirty = bool(subprocess.check_output(
+        ["git", "status", "--porcelain"], cwd=ROOT, text=True).strip())
+    wheel = args.eqiora_wheel.resolve()
+    artifact = {"path": str(wheel), "sha256": hashlib.sha256(wheel.read_bytes()).hexdigest(),
+                "source_revision": args.eqiora_revision, "build_profile": args.eqiora_build_profile}
     args.output = args.output.resolve()
     args.output.mkdir(parents=True)
     os.sched_setaffinity(0, {args.cpu})
@@ -50,9 +60,28 @@ def collect_reports(args, cases, *, problem_root):
             if backend == "eqiora":
                 command += ["--wheel", str(args.eqiora_wheel.resolve()), "--revision", args.eqiora_revision,
                             "--build-profile", args.eqiora_build_profile]
-            with (directory / "worker.log").open("w") as log:
-                completed = subprocess.run(command, cwd=ROOT, env=child_environment(backend, executable, directory),
-                                           stdout=log, stderr=subprocess.STDOUT, check=False)
+            receipt_path = directory / "process-receipt.json"
+            receipt = {"case": case.label, "backend": backend, "command": command,
+                       "cwd": str(ROOT), "actual_harness_revision": harness_revision,
+                       "harness_dirty": harness_dirty,
+                       "collector_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                       "artifact": artifact if backend == "eqiora" else None,
+                       "started_at": datetime.now(timezone.utc).isoformat(),
+                       "finished_at": None, "terminal_exit_code": None}
+            receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+            try:
+                with (directory / "worker.log").open("w") as log:
+                    completed = subprocess.run(command, cwd=ROOT, env=child_environment(backend, executable, directory),
+                                               stdout=log, stderr=subprocess.STDOUT, check=False)
+                receipt["terminal_exit_code"] = completed.returncode
+            except OSError as error:
+                receipt["launch_error"] = str(error)
+                raise
+            finally:
+                receipt["finished_at"] = datetime.now(timezone.utc).isoformat()
+                if output.is_file():
+                    receipt["result_sha256"] = hashlib.sha256(output.read_bytes()).hexdigest()
+                receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
             if completed.returncode:
                 error = {"error": "comparison_worker_failed", "backend": backend, "case": case.label,
                          "exit_code": completed.returncode, "log": str(directory / "worker.log"),

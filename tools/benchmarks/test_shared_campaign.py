@@ -22,7 +22,12 @@ class CampaignTests(unittest.TestCase):
                                     eqiora_wheel=self.root / 'eqiora.whl',
                                     eqiora_revision='a' * 40, eqiora_build_profile='release',
                                     mode='benchmark')
+        self.args.eqiora_wheel.write_bytes(b"fixture wheel")
         self.commands = []
+        metadata = patch('shared_campaign.subprocess.check_output',
+                         side_effect=lambda command, **kwargs: 'a' * 40 if command[1] == 'rev-parse' else '')
+        metadata.start()
+        self.addCleanup(metadata.stop)
 
     def worker(self, command, **kwargs):
         self.commands.append((command, kwargs))
@@ -56,6 +61,10 @@ class CampaignTests(unittest.TestCase):
             else:
                 self.assertEqual(command[-6:], ['--wheel', str(self.args.eqiora_wheel),
                                                 '--revision', 'a' * 40, '--build-profile', 'release'])
+        receipts = [json.loads(path.read_text()) for path in self.args.output.glob('*/*/process-receipt.json')]
+        self.assertEqual(len(receipts), 4)
+        self.assertTrue(all(row['terminal_exit_code'] == 0 and row['result_sha256'] for row in receipts))
+        self.assertTrue(all(row['started_at'] <= row['finished_at'] for row in receipts))
         self.assertEqual(len(list(self.args.output.glob('*/*/worker.log'))), 4)
 
     def test_failed_worker_stops_and_retains_diagnostics(self):
@@ -71,7 +80,21 @@ class CampaignTests(unittest.TestCase):
         failure = json.loads((self.args.output / 'failure.json').read_text())
         self.assertEqual((failure['case'], failure['backend'], failure['exit_code']), ('coarse', 'eqiora', 17))
         self.assertFalse(failure['complete_comparison'])
+        receipt = json.loads((Path(failure['log']).parent / 'process-receipt.json').read_text())
+        self.assertEqual(receipt['terminal_exit_code'], 17)
+        self.assertNotIn('result_sha256', receipt)
         self.assertEqual(Path(failure['log']).read_text(), 'external solver failure\n')
+
+    def test_launch_failure_has_no_fabricated_exit_code(self):
+        with patch('shared_campaign.os.sched_setaffinity'), \
+             patch('shared_campaign.subprocess.run', side_effect=FileNotFoundError('missing interpreter')):
+            with self.assertRaises(FileNotFoundError):
+                collect_reports(self.args, [ComparisonCase('coarse', ())], problem_root=self.root)
+        receipt = json.loads((self.args.output / 'coarse/eqiora/process-receipt.json').read_text())
+        self.assertIsNone(receipt['terminal_exit_code'])
+        self.assertEqual(receipt['launch_error'], 'missing interpreter')
+        self.assertIsNotNone(receipt['finished_at'])
+        self.assertNotIn('result_sha256', receipt)
 
     def test_invalid_cases_fail_before_output_or_affinity_change(self):
         invalid = [[], [ComparisonCase('../escape', ())], [ComparisonCase('/absolute', ())],
