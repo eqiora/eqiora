@@ -40,6 +40,8 @@ fn external_msh_retains_two_triangles_or_one_tetrahedron_and_replays_honest_orig
         assert_eq!(mesh.dimension(), dimension);
         assert_eq!(mesh.mesh().entity_count(0), Some(4));
         assert_eq!(mesh.mesh().entity_count(dimension), Some(cells));
+        let expected_cells = if dimension == 2 { vec![vec![0,1,2], vec![0,2,3]] } else { vec![vec![0,1,2,3]] };
+        assert_eq!(mesh.mesh().cells(), expected_cells);
         assert_eq!((0..mesh.mesh().entity_count(dimension-1).unwrap()).filter(|&i| mesh.mesh().is_boundary_entity(MeshEntity::new(dimension-1,i)) == Some(true)).count(), 4);
         assert_eq!(owner.production().unwrap().provider_identity(), "eqiora.external-msh");
         assert_eq!(owner.production().unwrap().provider_version(), "4.1");
