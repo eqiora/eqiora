@@ -9,14 +9,18 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import common
-from accuracy import ComparisonError
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import shared_campaign as campaign
+import shared_measurement as measurement
+from shared_measurement import ComparisonError
+from accuracy import check_accuracy
 from test_protocol import analytic_discrete_solution, driver
 
 
 class BenchmarkTests(unittest.TestCase):
     def finish_case(self, output, *, dimension=3, cells=4, tool="eqiora",
-                    mode="benchmark", phases=True, corrupt=False):
+                    mode="benchmark", phases=True, corrupt=False, extra_calls=0):
         coordinates, values = analytic_discrete_solution(cells, dimension)
         if corrupt:
             values = values * 1.1
@@ -63,17 +67,19 @@ class BenchmarkTests(unittest.TestCase):
         def profile():
             self.assertFalse(in_clock)
             events.append("diagnostic")
-            extract(execute())
+            for _ in range(1 + extra_calls):
+                extract(execute())
             return {"required_phases_available": phases,
                     "fixture_diagnostic_seconds": 10000.0}
 
         prepared = {"environment": {}, "mesh_measurement": {"fixture": "mesh"},
                     "preparation_measurement": {"fixture": "preparation"}}
         self.last_timed = timed
-        actual_accuracy = common.check_accuracy
-        with patch.object(common, "clock", clock), patch.object(common, "memory", memory), \
-                patch.object(common, "check_accuracy", accuracy), patch.object(common.os, "getloadavg", return_value=(0, 0, 0)):
-            common.finish(args, tool, prepared, execute, extract, profile)
+        actual_accuracy = lambda coordinates, values, cells: check_accuracy(coordinates, values, cells, dimension)
+        with patch.object(measurement, "clock", clock), patch.object(measurement, "memory", memory), \
+                patch.object(measurement.os, "getloadavg", return_value=(0, 0, 0)):
+            measurement.finish(args, tool, prepared, execute, extract, profile, accuracy=accuracy,
+                               diagnostic_extra_calls=extra_calls)
         return json.loads(output.read_text()), events, timed, extracted
 
     def test_both_dimensions_use_the_existing_cold_diagnostic_warm_sample_order(self):
@@ -124,6 +130,36 @@ class BenchmarkTests(unittest.TestCase):
                 for key in ("execution_measurement", "mesh_measurement", "preparation_measurement"):
                     self.assertNotIn(key, report)
 
+    def test_additional_problem_probe_is_counted_outside_timed_samples(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report, _, timed, _ = self.finish_case(Path(temporary) / "result.json", extra_calls=1)
+            self.assertEqual(report["diagnostic_execution"]["additional_calls_per_tool"], 2)
+            self.assertEqual(report["diagnostic_execution"]["additional_problem_probe_calls"], 1)
+            self.assertEqual(timed, [True, False, False, False, False] + [True]*7)
+            self.assertEqual(report["execution_measurement"]["median_wall_seconds"], 4)
+
+    def test_shared_owner_preserves_vector_shape_and_callback_rejection(self):
+        import numpy as np
+        coordinates = np.array([[0., 0.], [1., 0.]])
+        values = np.array([[1., -2.], [3., 4.]])
+        seen = []
+        def accuracy(points, field, cells):
+            seen.append((points.shape, field.shape, cells))
+            raise ComparisonError("independent vector oracle rejected candidate")
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "result.json"
+            args = SimpleNamespace(dimension=2, cells=4, mode="benchmark", output=output)
+            with patch.object(measurement, "memory", return_value={}), self.assertRaises(ComparisonError):
+                measurement.finish(args, "eqiora", {"environment": {}}, lambda: object(),
+                                   lambda result: (coordinates, values, {}),
+                                   lambda: self.fail("rejected field must not enter diagnostic"), accuracy=accuracy)
+            self.assertEqual(seen, [((2, 2), (2, 2), 4)])
+            candidate = json.loads(output.with_name("candidate-field.json").read_text())
+            self.assertEqual(candidate["values_float64_hex"],
+                             [[float(value).hex() for value in row] for row in values])
+            self.assertFalse(output.exists())
+        self.assertEqual(measurement.float64_hex([[float("nan"), float("inf")]]), [["nan", "inf"]])
+
     def driver_arguments(self, output, *, levels=None):
         args = ["run.py", str(output), "--eqiora-python", "/installed/eqiora/python",
                 "--fenicsx-python", "/installed/fenicsx/python", "--eqiora-wheel", "/retained/wheel.whl",
@@ -145,7 +181,7 @@ class BenchmarkTests(unittest.TestCase):
                 self.finish_case(target, dimension=dimension, cells=cells, tool=tool, mode=mode)
                 return SimpleNamespace(returncode=0)
             with patch("sys.argv", self.driver_arguments(output)), patch.object(driver.os, "sched_setaffinity"), \
-                    patch.object(driver.subprocess, "run", worker), redirect_stdout(io.StringIO()):
+                    patch.object(campaign.subprocess, "run", worker), redirect_stdout(io.StringIO()):
                 self.assertEqual(driver.main(), 0)
             self.assertEqual([(Path(row[2]).stem, int(row[row.index("--cells")+1])) for row in commands],
                              [("eqiora_case", 4), ("fenicsx_case", 4), ("fenicsx_case", 8),
@@ -161,7 +197,7 @@ class BenchmarkTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "campaign"
             with patch("sys.argv", self.driver_arguments(output, levels=[4, 32])), \
-                    patch.object(driver.subprocess, "run") as worker, redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                    patch.object(campaign.subprocess, "run") as worker, redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 driver.main()
             worker.assert_not_called()
             self.assertFalse(output.exists())
@@ -169,7 +205,7 @@ class BenchmarkTests(unittest.TestCase):
                 kwargs["stdout"].write("required_reference_linear_solve_phase_unavailable\n")
                 return SimpleNamespace(returncode=2)
             with patch("sys.argv", self.driver_arguments(output)), patch.object(driver.os, "sched_setaffinity"), \
-                    patch.object(driver.subprocess, "run", failed_worker), redirect_stdout(io.StringIO()):
+                    patch.object(campaign.subprocess, "run", failed_worker), redirect_stdout(io.StringIO()):
                 self.assertEqual(driver.main(), 2)
             self.assertFalse((output / "summary.json").exists())
             failure = json.loads((output / "failure.json").read_text())

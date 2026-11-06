@@ -1,4 +1,4 @@
-"""Measurement bookkeeping for this single Poisson comparison."""
+"""Shared execution and measurement bookkeeping for external comparisons."""
 from __future__ import annotations
 
 import hashlib
@@ -12,10 +12,23 @@ import statistics
 import sys
 import time
 
-from accuracy import ComparisonError, LEVELS, check_accuracy, declared_levels
+class ComparisonError(ValueError):
+    """The declared mathematical or measurement contract was not met."""
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 THREAD_KEYS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RAYON_NUM_THREADS", "BLIS_NUM_THREADS")
+
+
+
+def shared_sources():
+    """Bind shared implementation bytes as well as each problem's drivers."""
+    return tuple(Path(__file__).with_name(name).resolve()
+                 for name in ("shared_measurement.py", "shared_accuracy.py", "shared_campaign.py"))
+
+
+def float64_hex(value):
+    """Retain scalar/vector field shape and nonfinite status in candidate JSON."""
+    return [float64_hex(item) for item in value] if isinstance(value, list) else float(value).hex()
 
 
 def digest(path):
@@ -37,7 +50,8 @@ def memory():
             "scope": "Linux process high-water marks; child peak is separate, not aggregate simultaneous tree memory"}
 
 
-def environment(tool, import_seconds):
+def environment(tool, import_seconds, *, protocol_root):
+    protocol_root = Path(protocol_root)
     if any(os.environ.get(key) != "1" for key in THREAD_KEYS):
         raise ComparisonError("all declared thread environment variables must be 1")
     if len(os.sched_getaffinity(0)) != 1:
@@ -50,13 +64,16 @@ def environment(tool, import_seconds):
             "thread_environment": {key: os.environ[key] for key in THREAD_KEYS},
             "load_at_start": os.getloadavg(), "imports_wall_seconds": import_seconds,
             "numpy_and_tool_imports_included": True,
-            "protocol_sha256": digest(Path(__file__).with_name("README.md")),
-            "accuracy_driver_sha256": digest(Path(__file__).with_name("accuracy.py")),
-            "harness_sha256": {path.name: digest(path) for path in sorted(Path(__file__).parent.glob("*.py"))}}
+            "protocol_sha256": digest(protocol_root / "README.md"),
+            "accuracy_driver_sha256": digest(protocol_root / "accuracy.py"),
+            "harness_sha256": {**{path.name: digest(path) for path in sorted(protocol_root.glob("*.py"))},
+                               **{str(path.relative_to(ROOT)): digest(path) for path in shared_sources()}}}
 
 
-def finish(args, tool, prepared, execute, extract, profile):
+def finish(args, tool, prepared, execute, extract, profile, *, accuracy, diagnostic_extra_calls=0):
     """Execute fresh numerical work on retained mesh/forms, not retained systems."""
+    if type(diagnostic_extra_calls) is not int or diagnostic_extra_calls < 0:
+        raise ComparisonError("diagnostic extra-call count must be a nonnegative integer")
     report = prepared
     report.update(tool=tool, dimension=args.dimension, cells_per_axis=args.cells, mode=args.mode,
                   stable_timing_claim=False, measurement_status=("correctness-only smoke; not performance evidence" if args.mode == "correctness-only"
@@ -68,17 +85,19 @@ def finish(args, tool, prepared, execute, extract, profile):
     # Preserve the actual candidate even if an accuracy/export gate rejects.
     # Hex strings retain non-finite status as valid JSON and finite values exactly.
     candidate = {"dimension": args.dimension, "coordinates_float64_hex": [[float(x).hex() for x in row] for row in coordinates],
-                 "values_float64_hex": [float(x).hex() for x in values], "solve": solve}
+                 "values_float64_hex": float64_hex(values.tolist()), "solve": solve}
     args.output.with_name("candidate-field.json").write_text(json.dumps(candidate, indent=2, allow_nan=False)+"\n")
-    report["accuracy"] = check_accuracy(coordinates, values, args.cells, args.dimension)
+    report["accuracy"] = accuracy(coordinates, values, args.cells)
     report["solve"] = solve
     report["profile"] = profile()
     report["diagnostic_execution"] = {
-        "additional_calls_per_tool": 1,
+        "additional_calls_per_tool": 1 + diagnostic_extra_calls,
         "position": "after cold ordinary execution and validation, before any warmups/samples",
         "ordinary_execution_has_phase_instrumentation": False,
         "cold_memory_scope": "process HWM immediately after ordinary field return, before output/protocol inspection, accuracy or profiling",
         "final_memory_scope": "whole child, including untimed inspection/accuracy/reporting/diagnostic profiling"}
+    if diagnostic_extra_calls:
+        report["diagnostic_execution"]["additional_problem_probe_calls"] = diagnostic_extra_calls
     if args.mode == "benchmark":
         if not report["profile"]["required_phases_available"]:
             raise ComparisonError("required_reference_linear_solve_phase_unavailable: use explicit --mode correctness-only; no subtraction or fallback")
@@ -107,17 +126,23 @@ def finish(args, tool, prepared, execute, extract, profile):
     args.output.write_text(json.dumps(report, indent=2, allow_nan=False)+"\n")
 
 
-def worker_arguments():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dimension", type=int, choices=(2, 3), default=2)
-    parser.add_argument("--cells", type=int, choices=LEVELS, required=True)
-    parser.add_argument("--mode", choices=("correctness-only", "benchmark"), required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--wheel", type=Path)
-    parser.add_argument("--revision")
-    parser.add_argument("--build-profile")
-    args = parser.parse_args()
-    if args.cells not in declared_levels(args.dimension):
-        parser.error("mesh level has no declared reference for this dimension")
-    return args
+
+def child_environment(backend: str, executable: Path, output: Path) -> dict:
+    env = dict(os.environ)
+    for key in ("PYTHONPATH", "PYTHONHOME", "LD_PRELOAD"):
+        env.pop(key, None)
+    if backend == "fenicsx":
+        # Never load the Eqiora build/test environment's OpenMPI or other
+        # foreign libraries ahead of the isolated MPICH conda-forge RPATH.
+        for key in ("LD_LIBRARY_PATH", "MPICC", "MPICXX", "PETSC_OPTIONS", "PETSC_OPTIONS_YAML", "SLEPC_OPTIONS",
+                    "CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LIBRARY_PATH",
+                    "CPATH", "C_INCLUDE_PATH", "CPLUS_INCLUDE_PATH"):
+            env.pop(key, None)
+        for key in list(env):
+            if key.startswith(("OMPI_", "PMI_", "PMIX_", "I_MPI_", "MPICH_", "MPIEXEC_")):
+                env.pop(key)
+    env["PATH"] = str(executable.parent) + os.pathsep + env.get("PATH", "")
+    env.update({key: "1" for key in THREAD_KEYS})
+    env.update(CUDA_VISIBLE_DEVICES="", TMPDIR=str(output), XDG_CACHE_HOME=str(output / "cache"))
+    return env
+

@@ -7,6 +7,7 @@ import sysconfig
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import basix
 import dolfinx
 from dolfinx import fem, mesh
@@ -15,8 +16,10 @@ from mpi4py import MPI
 import numpy as np
 from petsc4py import PETSc
 import ufl
-from accuracy import check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
-from common import ComparisonError, clock, environment, finish, memory, worker_arguments
+from shared_accuracy import check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
+from shared_measurement import ComparisonError, clock, environment, finish, memory
+from worker_arguments import worker_arguments
+from accuracy import check_accuracy
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
 
 
@@ -25,7 +28,7 @@ def main(args):
         raise ComparisonError("this locked comparison requires DOLFINx and Basix 0.11.0")
     if PETSc.ScalarType != np.float64 or MPI.COMM_WORLD.size != 1:
         raise ComparisonError("comparison requires real binary64 PETSc and one MPI rank")
-    env = environment("fenicsx", IMPORT_SECONDS)
+    env = environment("fenicsx", IMPORT_SECONDS, protocol_root=Path(__file__).parent)
     env.update(mpi_library=MPI.Get_library_version(), petsc_version=PETSc.Sys.getVersionInfo(),
                petsc_scalar_type=str(PETSc.ScalarType), petsc_integer_type=str(PETSc.IntType),
                compiler_environment={key: os.environ.get(key) for key in
@@ -191,7 +194,8 @@ def main(args):
                 "linear_solve_scope": "KSP allocation/configuration+zero guess+KSPSolve+independent true-residual acceptance+effective-policy/summary getters",
                 "execution_extra": "field recovery included; protocol diagnostics/output inspection/result destruction excluded"}
 
-    finish(args, "fenicsx", report, execute, extract, diagnostic)
+    finish(args, "fenicsx", report, execute, extract, diagnostic,
+           accuracy=lambda coordinates, values, cells: check_accuracy(coordinates, values, cells, args.dimension))
 
 
 if __name__ == "__main__":
