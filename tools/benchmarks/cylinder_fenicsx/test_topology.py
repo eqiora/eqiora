@@ -3,7 +3,7 @@ import copy
 import unittest
 import numpy as np
 from topology import (ComparisonError, boundary_facets, check_permutation,
-                      hierarchical_bubbles, mesh_arrays)
+                      hierarchical_bubbles, mesh_arrays, cylinder_geometry_report)
 from accuracy import (H, U, boundary_flux, check_rule, discrete_inlet_flux,
                       duffy_rule, physical_norms)
 
@@ -47,6 +47,18 @@ class TopologyTests(unittest.TestCase):
         centroids = vertices[cells].mean(axis=1)+expected
         np.testing.assert_array_equal(hierarchical_bubbles(vertices, centroids, cells), expected)
         np.testing.assert_array_equal(hierarchical_bubbles(vertices, centroids[::-1], cells[::-1]), expected[::-1])
+
+    def test_clockwise_hole_and_area_from_cell_topology(self):
+        data = {'coordinates': [[0., 0.], [3., 0.], [3., 3.], [0., 3.], [1., 1.], [2., 1.], [2., 2.], [1., 2.]],
+                'cells': [[0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]],
+                'boundaries': {'inlet': [[3, 0]], 'outlet': [[1, 2]], 'walls': [[0, 1], [2, 3]],
+                               'cylinder': [[4, 5], [5, 6], [6, 7], [7, 4]]}}
+        report = cylinder_geometry_report(data)
+        self.assertEqual(report['triangle_fluid_area'], 8.)
+        self.assertEqual(report['hole_signed_area'], -1.)
+        data['boundaries']['cylinder'], data['boundaries']['walls'] = data['boundaries']['walls'], data['boundaries']['cylinder']
+        with self.assertRaises(ComparisonError):
+            cylinder_geometry_report(data)
 
     def test_exact_triangle_moments_and_weight_falsifier(self):
         for order, degree in ((3, 4), (4, 6)):

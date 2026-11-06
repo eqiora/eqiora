@@ -85,3 +85,34 @@ def boundary_flux(data, fields, name):
     lengths = np.abs(coordinates[segments[:, 1], 1]-coordinates[segments[:, 0], 1])
     values = np.asarray(fields['velocity_vertex'])[segments, 0].mean(axis=1)
     return float(np.sum(lengths*values)*(-1 if name == 'inlet' else 1))
+
+
+def check_trace_and_flux(data, fields, scaled_residual_cap):
+    coordinates, _, _ = mesh_arrays(data)
+    expected = np.zeros_like(coordinates)
+    inlet_vertices = np.unique(np.asarray(data['boundaries']['inlet']).reshape(-1))
+    y = coordinates[inlet_vertices, 1]
+    expected[inlet_vertices, 0] = 4*U*y*(H-y)/(H*H)
+    zeros = np.unique(np.concatenate([np.asarray(data['boundaries'][name]).reshape(-1)
+                                      for name in ('walls', 'cylinder')]))
+    expected[zeros] = 0
+    essential = np.union1d(inlet_vertices, zeros)
+    trace_error = float(np.max(np.abs(np.asarray(fields['velocity_vertex'])[essential]-expected[essential])))
+    trace_roundoff = 256*np.finfo(float).eps*U
+    if trace_error > trace_roundoff:
+        raise ComparisonError('essential velocity trace differs from prescribed nodal inlet/no-slip data')
+    inlet, outlet = boundary_flux(data, fields, 'inlet'), boundary_flux(data, fields, 'outlet')
+    exact = discrete_inlet_flux(data)
+    flux_roundoff = 256*np.finfo(float).eps*U*H*max(1, len(data['boundaries']['inlet']))
+    if abs(inlet-exact) > flux_roundoff:
+        raise ComparisonError('inlet flux differs from independently integrated piecewise-linear trace')
+    # Every pressure row is free. Summing them represents q=1 and gives net
+    # boundary flux. A physical pressure-row residual is U H times its scaled
+    # counterpart, hence Nv U H r_cap plus the input-only flux summation margin.
+    continuity_bound = len(coordinates)*U*H*scaled_residual_cap+flux_roundoff
+    if abs(inlet+outlet) > continuity_bound:
+        raise ComparisonError('global flux fails the common weak-continuity residual bound')
+    return {'trace_max_error': trace_error, 'trace_arithmetic_allowance': trace_roundoff,
+            'inlet_flux': inlet, 'outlet_flux': outlet, 'analytic_discrete_inlet_flux': exact,
+            'flux_arithmetic_allowance': flux_roundoff, 'net_flux': inlet+outlet,
+            'weak_continuity_flux_bound': continuity_bound}

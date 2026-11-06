@@ -29,9 +29,13 @@ def residual_ceiling(maximum_row_nonzeros, matrix_inf_norm, reference_x_inf_norm
 def freeze_budget(data, references, residual_control):
     if tuple(references) != ('A', 'B', 'C'):
         raise ComparisonError('requires the designated external A/B/C batch, without reference selection')
-    if any(not math.isfinite(r['scaled_residual_inf']) or r['scaled_residual_inf'] > residual_control['absolute_scaled_residual_ceiling']
+    if any(not math.isfinite(r['scaled_residual_inf']) or r['scaled_residual_inf'] < 0 or r['scaled_residual_inf'] > residual_control['absolute_scaled_residual_ceiling']
            for r in references.values()):
         raise ComparisonError('external reference failed the predeclared backward residual ceiling')
+    for row in references.values():
+        force = np.asarray(row['force_on_selection'])
+        if force.shape != (2,) or not np.isfinite(force).all():
+            raise ComparisonError('invalid external force vector')
     reference = references['A']
     amplitudes = physical_norms(data, reference['fields'])
     fx, fy = np.abs(reference['force_on_selection'])
@@ -77,3 +81,39 @@ def compare(data, candidate, reference, frozen):
     if not math.isfinite(residual) or residual > frozen['residual_control']['absolute_scaled_residual_ceiling']:
         raise ComparisonError('candidate fails frozen external-operator residual ceiling')
     return differences_from_a
+
+
+def check_falsifiers(data, reference, frozen):
+    """Run the protocol's physical mutants through the same comparison gate."""
+    import copy
+    mutants = {}
+    for name in ('zero_velocity', 'omit_bubbles', 'zero_pressure', 'pressure_shift',
+                 'zero_drag', 'reverse_drag', 'shift_drag', 'shift_lift'):
+        mutant = copy.deepcopy(reference)
+        for key, value in mutant['fields'].items(): mutant['fields'][key] = np.asarray(value).copy()
+        mutant['force_on_selection'] = np.asarray(mutant['force_on_selection']).copy()
+        if name == 'zero_velocity':
+            mutant['fields']['velocity_vertex'][:] = 0; mutant['fields']['velocity_cell_bubble'][:] = 0
+        elif name == 'omit_bubbles': mutant['fields']['velocity_cell_bubble'][:] = 0
+        elif name == 'zero_pressure': mutant['fields']['pressure_vertex'][:] = 0
+        elif name == 'pressure_shift': mutant['fields']['pressure_vertex'] += P
+        elif name == 'zero_drag': mutant['force_on_selection'][0] = 0
+        elif name == 'reverse_drag': mutant['force_on_selection'][0] *= -1
+        elif name == 'shift_drag': mutant['force_on_selection'][0] += FORCE_SCALE
+        elif name == 'shift_lift': mutant['force_on_selection'][1] += FORCE_SCALE
+        mutants[name] = mutant
+    if abs(reference['force_on_selection'][1]) >= FORCE_SCALE:
+        for name in ('zero_lift', 'reverse_lift'):
+            mutant = copy.deepcopy(reference)
+            mutant['force_on_selection'] = np.asarray(mutant['force_on_selection']).copy()
+            mutant['force_on_selection'][1] = 0 if name == 'zero_lift' else -mutant['force_on_selection'][1]
+            mutants[name] = mutant
+    rejected = []
+    for name, mutant in mutants.items():
+        try:
+            compare(data, mutant, reference, frozen)
+        except ComparisonError:
+            rejected.append(name)
+        else:
+            raise ComparisonError(f'inconclusive budget admits deliberate {name} mutant')
+    return rejected

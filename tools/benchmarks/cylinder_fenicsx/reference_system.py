@@ -135,14 +135,6 @@ def solve(system, implementation):
     return function, fields, canonical, summary
 
 
-def scaled_residual(matrix, rhs, canonical, system):
-    unknown = matrix.createVecRight(); unknown.array[:] = canonical[system.free]/system.scales
-    residual = rhs.duplicate(); matrix.mult(unknown, residual); residual.axpy(-1., rhs)
-    result = float(residual.norm(PETSc.NormType.NORM_INFINITY))
-    unknown.destroy(); residual.destroy()
-    return result
-
-
 def observations(system, function, fields, canonical, *, jit_options):
     velocity, pressure = function.sub(0), function.sub(1)
     metadata = quadrature('basix-degree-6')
@@ -152,7 +144,6 @@ def observations(system, function, fields, canonical, *, jit_options):
     complete = system.transformation.createVecRight(); complete.array[:] = canonical
     nodal = system.transformation.createVecLeft(); system.transformation.mult(complete, nodal)
     imbalance = nodal.duplicate(); system.raw_nodal_matrix.mult(nodal, imbalance)
-    indices = system.prepared.velocity_to_mixed.reshape(-1, 2)[system.prepared.vertex_velocity_dofs[system.prepared.cylinder_vertices]]
     # Nodal centroid basis has nonzero vertex gradients; the P1 virtual lift
     # includes centroid values. Evaluate its dot product, not only vertex rows.
     from fenicsx_adapter import cylinder_indicator

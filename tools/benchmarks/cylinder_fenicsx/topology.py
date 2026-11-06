@@ -77,3 +77,51 @@ def hierarchical_bubbles(vertex_values, centroid_values, cells):
     if vertex_values.ndim != 2 or vertex_values.shape[1] != 2 or centroid_values.shape != (len(cells), 2):
         raise ComparisonError('MINI field inventories do not match the two-component mesh')
     return centroid_values-vertex_values[cells].mean(axis=1)
+
+
+def cylinder_geometry_report(data):
+    """Recover oriented outer/hole loops from positive cells and audit named topology."""
+    coordinates, cells, _ = mesh_arrays(data)
+    vertices = coordinates[cells]
+    twice = ((vertices[:, 1, 0]-vertices[:, 0, 0])*(vertices[:, 2, 1]-vertices[:, 0, 1])
+             -(vertices[:, 1, 1]-vertices[:, 0, 1])*(vertices[:, 2, 0]-vertices[:, 0, 0]))
+    if np.any(twice <= 0):
+        raise ComparisonError('cylinder comparison requires positively oriented affine cells')
+    incidence, oriented = {}, {}
+    for cell in cells:
+        for a, b in ((cell[0], cell[1]), (cell[1], cell[2]), (cell[2], cell[0])):
+            edge = tuple(sorted((int(a), int(b))))
+            incidence[edge] = incidence.get(edge, 0)+1; oriented[edge] = (int(a), int(b))
+    successor = {}
+    for edge, count in incidence.items():
+        if count == 1:
+            a, b = oriented[edge]
+            if a in successor:
+                raise ComparisonError('exterior is not a disjoint union of oriented simple loops')
+            successor[a] = b
+    remaining, loops = set(successor), []
+    while remaining:
+        start = min(remaining); current = start; loop = []
+        while current in remaining:
+            remaining.remove(current); loop.append(current); current = successor[current]
+        if current != start:
+            raise ComparisonError('exterior boundary loop is not closed')
+        points = coordinates[loop]; following = np.roll(points, -1, axis=0)
+        area = np.sum(points[:, 0]*following[:, 1]-following[:, 0]*points[:, 1])/2
+        loops.append((loop, float(area)))
+    cylinder = set(np.asarray(data['boundaries']['cylinder']).reshape(-1))
+    holes = [(loop, area) for loop, area in loops if area < 0]
+    outer = [(loop, area) for loop, area in loops if area > 0]
+    if len(loops) != 2 or len(holes) != 1 or len(outer) != 1 or set(holes[0][0]) != cylinder:
+        raise ComparisonError('cylinder tag does not identify the unique clockwise hole loop')
+    triangle_area = float(twice.sum()/2)
+    boundary_area = sum(area for _, area in loops)
+    # Area identity follows from cancellation of interior oriented edges.
+    # The allowance covers only summation/products of these finite coordinates.
+    allowance = 256*np.finfo(float).eps*len(cells)*max(1., float(np.max(np.abs(coordinates)))**2)
+    if abs(triangle_area-boundary_area) > allowance:
+        raise ComparisonError('cell and oriented-boundary fluid areas disagree')
+    return {'triangle_fluid_area': triangle_area, 'oriented_boundary_fluid_area': boundary_area,
+            'outer_signed_area': outer[0][1], 'hole_signed_area': holes[0][1],
+            'minimum_cell_area': float(twice.min()/2), 'area_arithmetic_allowance': allowance,
+            'hole_orientation': 'clockwise into fluid exterior', 'positive_cells': True}

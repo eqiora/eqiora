@@ -15,11 +15,11 @@ polygonal mesh and boundary partition. No private model/result JSON or
 alternative physics implementation supplies Eqiora's side. FEniCSx uses its
 independent standard finite-element assembly of the same Stokes problem.
 
-Only geometry, mesh, public compilation/resolution, function-space, boundary
-mapping and field-export preparation are authorised at this stage. No solve,
-accuracy threshold, force oracle or timing campaign is declared here. The
-primary mathematical review must settle the force-reaction versus stress
-comparison and scientific acceptance criteria before numerical observations.
+Geometry, mesh, public compilation, function-space and field-export
+preparation are implemented. The reviewed specification below fixes the force
+reference and empirical budget algorithm before numerical observations. Its
+reference batch and every candidate solve remain unexecuted; no timing
+campaign is authorised.
 DFG/Navier–Stokes benchmark numbers are not Stokes reference values.
 
 The existing shared measurement and child-process owners will run any later
@@ -110,23 +110,20 @@ algebraic flux oracle. Test weak continuity and global flux balance; MINI does
 not have pointwise zero divergence. Sum global essential reactions over the
 union of constrained vertices once, avoiding inlet/wall corner double counts.
 
-## Pending external-only acceptance calibration
+## Reference acceptance meaning
 
 Use independent direct solvers (Eqiora SparseLU/Faer and an available locked
 PETSc factorization), float64, recording the actual backend and independently
 computed free residuals. A direct solver's nominal relative tolerance does not
 establish a forward-error bound. Fix scales from inputs: velocity U, length H,
-pressure mu U/H and force per depth mu U. The primary review must freeze the
-external-only engineering-budget algorithm before any solved output is read.
+pressure mu U/H and force per depth mu U. The primary-reviewed algorithm below fixes the
+external-only engineering budget before any solved output is read.
 Reference conditioning, adjoint residuals, assembly/basis conversion and force
 reduction roundoff must be accounted for separately. No numerical drag, lift,
 field or force tolerance is selected by this preparatory implementation.
 
-The force adjoint relation uses J(x) = ell^T x + c and A^T z = ell. In a common
-residual norm the force difference is bounded by the dual norm of z times the
-sum of the two residual budgets, with separately justified assembly/evaluation
-and computed-adjoint allowances. Report empirical calibration as empirical;
-do not claim a certified inverse bound from observed residuals alone.
+The first campaign uses the explicit empirical algorithm below, without a
+claimed certified inverse bound or an additional adjoint solve.
 
 Required falsifiers include reversed force sign, omitted bubbles, symmetric
 gradient replaced by vector Laplacian, an added pressure gauge or pressure
@@ -134,3 +131,98 @@ shift, missing inlet lifting, wrong cylinder tags and reordered DOFs/cells.
 Reject an engineering allowance broad enough to admit these changes. No timing
 or candidate solve runs until the primary explicitly authorises the frozen
 reference calibration and candidate accuracy stages.
+
+## Frozen first-reference-batch algorithm
+
+The primary review has now selected the following empirical engineering gate.
+It is an agreement-resolution requirement, not a certified forward-error or
+continuum-error bound. Numerical budget values must come exclusively from the
+external batch before Eqiora runs. The initial mesh is the ordinary example
+mesh above; later actual-cylinder mesh levels remain required for a broader
+campaign.
+
+Run exactly three external solutions in this order, with one rank/thread and
+float64, no pressure gauge and the same nodal inlet/no-slip lifting:
+
+| Label | Direct implementation | Assembly quadrature |
+| --- | --- | --- |
+| A, designated reference | PETSc preonly + LU + MUMPS | positive nine-point Duffy, three Gauss points per axis |
+| B | PETSc preonly + LU + serial SuperLU | the same Duffy rule |
+| C | PETSc preonly + LU + MUMPS | positive Basix degree-six Gauss–Jacobi, sixteen points |
+
+Both distinct implementations are present in the unchanged locked environment;
+SciPy is not installed or required. No fourth reference is planned. Keep the
+factorization defaults and record actual PETSc type, options, implementation,
+precision and convergence reason. Do not select a different reference after
+seeing a candidate. All physical norms and volume virtual-work forces use the
+same independent degree-six observation route.
+
+The common coefficient order is original vertex velocity components, original
+cell hierarchical bubble components, then original pressure vertices. Apply
+the explicitly constructed enrichment basis congruence before essential
+elimination. With Dv diagonal (U for both velocity associations, P = mu U/H
+for pressure), form
+
+```
+xhat = inverse(Dv) x
+Ahat = transpose(Dv) Aphysical Dv / (mu U^2)
+bhat = transpose(Dv) bphysical / (mu U^2).
+```
+
+Let eps be float64 epsilon, m be the maximum nonzero row count plus two,
+gamma = m eps/(1-m eps), and
+D = ||Ahat||inf ||xhat_A||inf + ||bhat||inf. Reject if m eps >= 1 or D is
+nonpositive/nonfinite. Freeze r_cap = 100 gamma D. Every A/B/C residual and
+the later candidate residual must satisfy this same infinity-norm ceiling on
+the designated-A operator. Export its CSR arrays, RHS, free indices and scales
+in a standard NumPy archive. Read with `allow_pickle=False`, verify file hash,
+all dimensions, integer bounds, free-index bijection and declared scaling.
+The Eqiora environment evaluates this external operator with NumPy; it does
+not need PETSc or another PDE assembly.
+
+For each of four metrics independently (complete velocity RMS, pressure RMS
+without mean removal, cylinder x force, cylinder y force), set
+
+```
+s_Q = U, P, mu U, mu U respectively
+S_Q = max(s_Q, reference amplitude of A)
+delta_Q = maximum physical difference over all A/B/C pairs
+tau_Q = max(sqrt(eps) S_Q, 10 delta_Q)
+broad_cap_Q = 1e-4 S_Q.
+```
+
+Field RMS is sqrt(integral(|field|²)/fluid area), using degree-six integration
+of the complete MINI polynomial. Each force uses its own amplitude and floor;
+lift never borrows drag's magnitude. All comparisons are absolute in their
+physical units. The candidate must satisfy d_Q(E,A) <= tau_Q.
+
+Before freezing, compute material-mutant distances from A. Velocity uses the
+smaller RMS distance to zero velocity and to removal of all hierarchical
+bubbles. Pressure uses the smaller distance to zero pressure and addition of
+constant P. Drag uses min(abs(Fx,A), mu U). Lift uses mu U. Require
+
+```
+tau_Q <= min(broad_cap_Q, material_mutant_distance_Q / 20).
+```
+
+Run zero-velocity, omitted-bubble, zero-pressure, pressure-shift, zero-drag,
+reversed-drag, one-force-scale drag/lift shifts through the actual agreement
+gate and require rejection. Also reject zero/reversed lift when abs(Fy,A) is
+at least mu U; otherwise do not claim its sign is numerically resolved. A
+failed cap is inconclusive. It cannot increase the margin or remove a
+falsifier. The factors 100, 10, 1e-4 and 20 and sqrt(eps) floor were fixed by
+the primary mathematical review before any solved output.
+
+Check nodal boundary traces with a declared 256 eps U arithmetic margin and
+analytic discrete inlet flux with 256 eps U H times the inlet edge count.
+Summing all free pressure equations gives a net-flux allowance
+Nv U H r_cap plus that input-only arithmetic margin. These are separate
+trace/continuity controls, not the four field/force tolerances.
+
+`calibrate.py --mesh MESH_JSON --output NEW_DIRECTORY` implements this batch.
+It records each reference observation, original mesh identities, quadrature,
+source and installed environment, common-operator files and their hashes.
+Only a completely accepted batch writes `reference-manifest.json`; failure
+retains attempts but produces no frozen candidate budget. Candidate collection
+must verify this manifest and cannot recalibrate it. The command has not been
+run: explicit primary authorisation is still required.

@@ -1,6 +1,7 @@
 """Independent FEniCSx MINI preparation on the ordinary exported affine mesh."""
 from dataclasses import dataclass
 import basix
+import dolfinx
 import basix.ufl
 from dolfinx import fem, mesh
 from mpi4py import MPI
@@ -32,7 +33,7 @@ class Prepared:
 
 
 def prepare(data):
-    if basix.__version__ != '0.11.0' or MPI.COMM_WORLD.size != 1 or PETSc.ScalarType != np.float64:
+    if basix.__version__ != '0.11.0' or dolfinx.__version__ != '0.11.0' or MPI.COMM_WORLD.size != 1 or PETSc.ScalarType != np.float64:
         raise ComparisonError('requires locked Basix0.11, one rank and real float64 PETSc')
     coordinates, cells, labelled = mesh_arrays(data)
     coordinate_element = basix.ufl.element('Lagrange', 'triangle', 1, shape=(2,))
@@ -67,6 +68,12 @@ def prepare(data):
     mixed = fem.functionspace(domain, basix.ufl.mixed_element([velocity_element, p1]))
     velocity, velocity_to_mixed = mixed.sub(0).collapse()
     pressure, pressure_to_mixed = mixed.sub(1).collapse()
+    # Installed DOLFINx0.11 exposes each collapse map as a one-entry list of
+    # scalar-index arrays. Normalize that public map, preserving its order.
+    velocity_to_mixed = np.asarray(velocity_to_mixed, dtype=PETSc.IntType).reshape(-1)
+    pressure_to_mixed = np.asarray(pressure_to_mixed, dtype=PETSc.IntType).reshape(-1)
+    if velocity_to_mixed.shape != (2*(nv+nc),) or pressure_to_mixed.shape != (nv,):
+        raise ComparisonError('collapsed scalar-index maps do not cover MINI/P1')
     if (velocity.dofmap.index_map_bs != 2 or velocity.dofmap.index_map.size_global != nv+nc
             or pressure.dofmap.index_map_bs != 1 or pressure.dofmap.index_map.size_global != nv
             or mixed.dofmap.index_map.size_global*mixed.dofmap.index_map_bs != 3*nv+2*nc):
@@ -141,5 +148,9 @@ def weak_forms(prepared, *, quadrature_metadata):
 def cylinder_virtual_work(prepared, velocity, pressure, *, quadrature_metadata):
     """Force on fluid from UFL volume virtual work, never raw boundary stress."""
     dx = ufl.Measure('dx', domain=prepared.domain, metadata=quadrature_metadata)
-    return [(2*.001*ufl.inner(ufl.sym(ufl.grad(velocity)), ufl.sym(ufl.grad(cylinder_indicator(prepared, i))))
-             -pressure*ufl.div(cylinder_indicator(prepared, i)))*dx for i in range(2)]
+    result = []
+    for component in range(2):
+        indicator = cylinder_indicator(prepared, component)
+        result.append((2*.001*ufl.inner(ufl.sym(ufl.grad(velocity)), ufl.sym(ufl.grad(indicator)))
+                       -pressure*ufl.div(indicator))*dx)
+    return result

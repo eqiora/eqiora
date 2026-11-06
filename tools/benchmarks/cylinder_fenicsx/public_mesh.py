@@ -5,7 +5,7 @@ import numpy as np
 BOUNDARIES = ('inlet', 'outlet', 'walls', 'cylinder')
 
 
-def geometry_and_mesh(eqiora):
+def author_geometry(eqiora):
     graph = eqiora.geometry.GeometryGraph()
     rectangle = graph.rectangle(x_bounds=(0., 2.2), y_bounds=(0., .41))
     circle = graph.circle(center=(.2, .2), radius=.05)
@@ -14,6 +14,11 @@ def geometry_and_mesh(eqiora):
         'fluid': fluid.region, 'inlet': rectangle.boundaries[0],
         'outlet': rectangle.boundaries[1], 'walls': rectangle.boundaries[2:4],
         'cylinder': circle.boundaries[0]})
+    return geometry
+
+
+def geometry_and_mesh(eqiora):
+    geometry = author_geometry(eqiora)
     # These are the shipped example's existing controls, not a new refinement protocol.
     mesh = eqiora.meshing.generate(geometry, eqiora.meshing.GmshMesher(
         maximum_boundary_error=1e-4, maximum_target_size=.025,
