@@ -1,0 +1,117 @@
+{
+  "actual_validation_source_revision": "72c0e86f90341f4f2da8966f534ef93191537ebf",
+  "checks": [
+    {
+      "actual_terminal_exit_code": 0,
+      "command": [
+        "taskset",
+        "-c",
+        "56",
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "verify/numerics/affine-p2-scalar/reference",
+        "-p",
+        "test_*.py"
+      ],
+      "log_sha256": "b99e30e06c634d52a1a457ccac68530f0a1303b0e8ca60a9f3b4724bff3d4a0a",
+      "tests_passed": 19
+    },
+    {
+      "actual_terminal_exit_code": 0,
+      "command": [
+        "taskset",
+        "-c",
+        "56",
+        "python3",
+        "-B",
+        "verify/numerics/affine-p2-scalar/reference/recheck_patch.py"
+      ],
+      "dimensions": [
+        2,
+        3
+      ],
+      "exact_rational_inverse_checks": 2,
+      "galerkin_linear_solver_calls": 0,
+      "log_sha256": "a7c362662d13a9b34a1533bbaab2fedaa6f8b09c86b1fa03c87552931a68df76"
+    },
+    {
+      "actual_terminal_exit_code": 0,
+      "command": [
+        "taskset",
+        "-c",
+        "56",
+        "python3",
+        "-B",
+        "verify/numerics/affine-p2-scalar/reference/recheck.py",
+        "verify/numerics/affine-p2-scalar/reference/data/refinement"
+      ],
+      "galerkin_linear_solver_calls": 0,
+      "levels": [
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          2,
+          8
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          3,
+          8
+        ]
+      ],
+      "log_sha256": "181e96b2301e5628659f965cb51d86b27db595f36ef1f62df7cdd7a4c729f5a8"
+    }
+  ],
+  "cpu_affinity": [
+    56
+  ],
+  "cuda_visible_devices": "",
+  "eqiora_calls": 0,
+  "logs": {
+    "patch-recheck.log": "a7c362662d13a9b34a1533bbaab2fedaa6f8b09c86b1fa03c87552931a68df76",
+    "pure-tests.log": "b99e30e06c634d52a1a457ccac68530f0a1303b0e8ca60a9f3b4724bff3d4a0a",
+    "vector-recheck.log": "181e96b2301e5628659f965cb51d86b27db595f36ef1f62df7cdd7a4c729f5a8"
+  },
+  "packet_manifest_sha256": "9c6894b4d72003c5cf9131bddf2097c5b0a25c1d1306c832f4fdacbdeef7c0b0",
+  "schema": 1,
+  "scope": "Actual checks at the recorded source; later receipt-only commits do not relabel the validation source. All source and scientific input digests are retained.",
+  "source_sha256": {
+    "compare.py": "77a7c3603e021ea4b441e255ee2f49805b9926a6a1a0d7fdebd75c64b5f47382",
+    "exact.py": "2ee41265bd887a5d11e76c6b148c3b42b52e165a3fd04be3359c65c2f116ce76",
+    "generate_patch.py": "b92420f27484e7680e59a492a1912f22598c64db48e03138538e2d7a9d722794",
+    "generate_refinement.py": "2e92a8e30edce2b7f71db0b12c62416efe107aa3e315c6668ccebf10132b5f93",
+    "patch_gate.py": "ac8dfb8dceda520d6e7ae10021632d26a134a53f534ed386a0e8b49e43fa2a74",
+    "plot_reference.py": "fbc20919f356361cda429976cd8cb09cd27afe3b640c40df5e012fb8393dc605",
+    "recheck.py": "e4460234f6a3933fa637fbe3ba2d43507340995736cd58a684a62a82cdb5517e",
+    "recheck_patch.py": "4087ca6cbdea3bb426c8ec156b7f04852f7d4e043275d6084b31275acdc6f1c0",
+    "refinement.py": "9fb941c2fe561ed4a2ff0347ec78507ef8ebc895df1c8f4880a467f2f58c7cae",
+    "test_exact.py": "fabe7eedd8a9e47a7eb62f77808771d39937f556251ce342524f96a3515e87b6",
+    "test_patch_gate.py": "5f362264a42494a93eef2723c1fd23e4e2f993a88d59408b44bb8ca7ec7333ac",
+    "test_quadrature.py": "ebf23a24d7fa39623bf00f7a04f1db0d9d371044f476cc94b07458cc14fa2e54",
+    "test_refinement.py": "e2a7c26c75324470b133f959998b3a5b74bf3a1c02a8d27e24e997daef9a3cbf"
+  },
+  "thread_controls": {
+    "MKL_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1"
+  },
+  "tracked_source_clean_at_record": true
+}
