@@ -632,7 +632,7 @@ fn native_ordinary_hex_result_observation_and_canonical_replay() {
         "artifact_directory":prepared.evidence,"result_path":prepared.evidence.as_ref().unwrap().join("result.json"),
         "model_digest":prepared.model.digest().unwrap().to_string(),"mesh_digest":prepared.plan.as_spatial().unwrap().mesh_digest(),
         "plan_identity":plan_wire["identity"],"field":selected_field(&prepared).ulid().to_string(),
-        "observables":["energy","left_x","left_y","left_z"].map(|name| selected_observable(&prepared,name).ulid().to_string()),
+        "observables":(["energy","left_x","left_y","left_z"].map(|name| selected_observable(&prepared,name).ulid().to_string())),
         "status":"prepared-no-run"})).unwrap());
     persist(
         &root,
