@@ -76,12 +76,16 @@ a shared executor package does not imply semantic ownership of all its cases.
 and Clippy for directly changed packages, and explicitly named cases only. It defers
 documentation, release-tree, dependency-layer, facade, CI-contract, and surface checks to
 hosted pull-request CI or a `fast`/`affected` run, and states that deferral as a limitation.
+If a changed surface has no checks at this tier, the command reports that no checks ran
+and keeps the deferral explicit. An empty change set remains an error.
 It never substitutes for the tier a high-risk delta or release requires.
 
 `fast` selects formatting, direct changed-package tests and Clippy, explicitly named
 cases, and relevant lightweight documentation, site-source, dependency, or CI-contract checks. It is
 the broad fallback for an ordinary localized edit, not a mandatory first step when a narrower
-owned command exists.
+owned command exists. Studio changes select quality checks, unit tests, and the build
+through the same commands used by `affected`; browser interaction tests remain in
+`affected` or hosted Studio CI.
 
 Site changes select `python3 tools/site/check_site.py source --root .` in `fast`,
 `affected`, and `periodic`. This reuses the source checks without building the site;

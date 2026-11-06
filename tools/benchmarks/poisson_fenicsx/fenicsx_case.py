@@ -15,7 +15,7 @@ from mpi4py import MPI
 import numpy as np
 from petsc4py import PETSc
 import ufl
-from accuracy import check_identity_row, q1_vertex_dof_coordinates
+from accuracy import check_identity_row, q1_vertex_dof_coordinates, check_tensor_gauss
 from common import ComparisonError, clock, environment, finish, memory, worker_arguments
 IMPORT_SECONDS = (time.perf_counter_ns()-IMPORT_START)/1e9
 
@@ -33,21 +33,15 @@ def main(args):
                python_compiler_config={key: sysconfig.get_config_var(key) for key in ("CC", "CFLAGS", "LDSHARED")},
                blas=np.show_config(mode="dicts"))
     baseline = memory()
-    domain, mesh_time = clock(lambda: mesh.create_unit_square(
-        MPI.COMM_SELF, args.cells, args.cells, cell_type=mesh.CellType.quadrilateral))
-    if domain.topology.cell_type != mesh.CellType.quadrilateral:
-        raise ComparisonError("external mesh is not quadrilateral")
-    points, weights = basix.make_quadrature(basix.CellType.quadrilateral, 3,
-                                           rule=basix.QuadratureType.gauss_jacobi)
-    expected_1d = (1.0 + np.array([-1.0, 1.0])/np.sqrt(3.0))/2.0
-    expected = np.array(sorted((x, y) for x in expected_1d for y in expected_1d))
-    actual = np.array(sorted(map(tuple, points)))
-    if actual.shape != (4, 2) or weights.shape != (4,):
-        raise ComparisonError("Basix did not provide four tensor Gauss points")
-    # This conformance allowance covers only evaluation of the closed-form
-    # quadrature coordinates, not PDE accuracy or a solver tolerance.
-    np.testing.assert_array_max_ulp(actual, expected, maxulp=8)
-    np.testing.assert_array_max_ulp(weights, np.full(4, 0.25), maxulp=8)
+    dimension = args.dimension
+    cell_type = mesh.CellType.quadrilateral if dimension == 2 else mesh.CellType.hexahedron
+    create = mesh.create_unit_square if dimension == 2 else mesh.create_unit_cube
+    domain, mesh_time = clock(lambda: create(MPI.COMM_SELF, *([args.cells]*dimension), cell_type=cell_type))
+    if domain.topology.cell_type != cell_type or domain.topology.dim != dimension:
+        raise ComparisonError("external mesh has the wrong cell type or dimension")
+    basix_cell = basix.CellType.quadrilateral if dimension == 2 else basix.CellType.hexahedron
+    points, weights = basix.make_quadrature(basix_cell, 3, rule=basix.QuadratureType.gauss_jacobi)
+    check_tensor_gauss(points, weights, dimension)
     env["solve_quadrature"] = {"points": points.tolist(), "weights": weights.tolist(),
                                "rule": "gauss_jacobi", "degree": 3}
     jit_directory = args.output.parent / "fresh-jit-cache"
@@ -57,19 +51,21 @@ def main(args):
 
     def prepare():
         space = fem.functionspace(domain, ("Lagrange", 1))
-        if space.dofmap.index_map.size_global != (args.cells+1)**2 or space.dofmap.index_map_bs != 1:
+        if space.dofmap.index_map.size_global != (args.cells+1)**dimension or space.dofmap.index_map_bs != 1:
             raise ComparisonError("external Q1 dof inventory differs from the declared grid")
-        domain.topology.create_connectivity(1, 2)
+        domain.topology.create_connectivity(dimension-1, dimension)
         facets = mesh.exterior_facet_indices(domain.topology)
-        boundary = np.unique(fem.locate_dofs_topological(space, 1, facets))
-        if len(boundary) != 4*args.cells:
+        boundary = np.unique(fem.locate_dofs_topological(space, dimension-1, facets))
+        if len(boundary) != (args.cells+1)**dimension - (args.cells-1)**dimension:
             raise ComparisonError("external Dirichlet boundary inventory is incomplete")
         bc = fem.dirichletbc(PETSc.ScalarType(0.0), boundary, space)
         trial, test = ufl.TrialFunction(space), ufl.TestFunction(space)
         x = ufl.SpatialCoordinate(domain)
         measure = ufl.Measure("dx", domain=domain, metadata={
             "quadrature_degree": 3, "quadrature_rule": "gauss_jacobi"})
-        source = 2*np.pi**2*ufl.sin(np.pi*x[0])*ufl.sin(np.pi*x[1])
+        source = dimension*np.pi**2
+        for axis in range(dimension):
+            source *= ufl.sin(np.pi*x[axis])
         jit = {"cache_dir": str(jit_directory), "cffi_extra_compile_args": ["-O3"]}
         a = fem.form(ufl.inner(ufl.grad(trial), ufl.grad(test))*measure, jit_options=jit)
         load = fem.form(source*test*measure, jit_options=jit)
@@ -80,7 +76,7 @@ def main(args):
     # evaluates a floating geometry map and can round even a dyadic vertex.
     # Export the exact mesh Geometry vertex by its actual dof/entity binding;
     # never snap or match approximate coordinates by proximity.
-    domain.topology.create_connectivity(0, 2)
+    domain.topology.create_connectivity(0, dimension)
     vertex_bindings = []
     for vertex in range(domain.topology.index_map(0).size_local):
         entity = np.array([vertex], dtype=np.int32)
@@ -88,10 +84,10 @@ def main(args):
         geometry_index = mesh.entities_to_geometry(domain, 0, entity, permute=False)
         if geometry_index.shape != (1, 1):
             raise ComparisonError("Q1 vertex does not identify exactly one Geometry vertex")
-        vertex_bindings.append((vertex, dof.tolist(), domain.geometry.x[geometry_index[0, 0], :2]))
-    coordinates = q1_vertex_dof_coordinates(vertex_bindings, (args.cells+1)**2)
+        vertex_bindings.append((vertex, dof.tolist(), domain.geometry.x[geometry_index[0, 0], :dimension]))
+    coordinates = q1_vertex_dof_coordinates(vertex_bindings, (args.cells+1)**dimension, dimension)
     env["coordinate_export"] = "exact mesh Geometry vertices through topological Q1 vertex/dof correspondence"
-    free = np.setdiff1d(np.arange((args.cells+1)**2, dtype=PETSc.IntType), boundary)
+    free = np.setdiff1d(np.arange((args.cells+1)**dimension, dtype=PETSc.IntType), boundary)
 
     def verify_boundary(matrix):
         # Untimed protocol check on the actual returned assembly, including
@@ -180,7 +176,7 @@ def main(args):
 
     report = {"environment": env, "memory_after_import": baseline, "memory_after_preparation": memory(),
               "mesh_measurement": mesh_time, "preparation_measurement": preparation,
-              "dofs": {"total": (args.cells+1)**2, "free": (args.cells-1)**2, "stored_algebraic": (args.cells+1)**2},
+              "dofs": {"total": (args.cells+1)**dimension, "free": (args.cells-1)**dimension, "stored_algebraic": (args.cells+1)**dimension},
               "jit": {"cache": "fresh directory", "cffi_extra_compile_args": ["-O3"]}}
     # A separate diagnostic execution retains native phase brackets, matching
     # the separate Eqiora profile execution rather than partitioning medians.
