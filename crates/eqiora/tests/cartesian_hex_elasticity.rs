@@ -175,6 +175,7 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
 fn physical_authored_traction_mismatches_reject_before_any_result() {
     prepare_source(SOURCE).expect("positive preparation must pass before mutation controls");
     let (equations, weak) = SOURCE.split_once("  form weak for balance {").unwrap();
+    assert_eq!(weak.matches("dot(trace(w),tx)").count(), 1);
     let changed_component = format!(
         "{}{}{}{}",
         equations,

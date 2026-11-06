@@ -41,6 +41,7 @@ def test_real_cartesian_inspectable_resource_budget_rejects_before_result():
 def altered_sources():
     source = (CASE/'model.eqi').read_text()
     equations, weak = source.split('  form weak for balance {', 1)
+    assert weak.count('dot(trace(w),tx)') == 1
     return {
         'changed-component': equations + '  parameter incorrect_tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.5,0.1875]);\n'
             + '  form weak for balance {' + weak.replace('dot(trace(w),tx)', 'dot(trace(w),incorrect_tx)', 1),
