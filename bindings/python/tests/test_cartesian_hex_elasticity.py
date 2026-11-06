@@ -36,3 +36,23 @@ def test_real_cartesian_inspectable_resource_budget_rejects_before_result():
     geometry = graph.build(box, named_topology={'body': box.region, **dict(zip(production.SIDES, box.boundaries, strict=True))})
     with pytest.raises(eqiora.ValidationError, match='limit|exceed|budget'):
         eqiora.meshing.generate(eqiora.meshing.resolve(geometry, eqiora.meshing.CartesianMesher(cells=(10000, 10000, 10000))))
+
+
+def altered_sources():
+    source = (CASE/'model.eqi').read_text()
+    equations, weak = source.split('  form weak for balance {', 1)
+    return {
+        'changed-component': equations + '  parameter incorrect_tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.5,0.1875]);\n'
+            + '  form weak for balance {' + weak.replace('trace(w),tx,', 'trace(w),incorrect_tx,', 1),
+        'reversed-traction': equations + '  form weak for balance {' + weak.replace('trace(w),tx,', 'trace(w),-tx,', 1),
+        'partial-contraction': equations + '  form weak for balance {' + weak.replace('axes=((0,0),(1,1))', 'axes=((0,0),)', 1),
+        'wrong-unit': source.replace('parameter tx: vector<Pa,3>', 'parameter tx: vector<N,3>', 1),
+    }
+
+
+@pytest.mark.parametrize('control', tuple(altered_sources()))
+def test_altered_authored_tensor_forms_reject_before_any_result(tmp_path, control):
+    with pytest.raises(eqiora.ValidationError) as caught:
+        production.prepare(eqiora, tmp_path, source=altered_sources()[control].encode())
+    assert 'coefficient alias exceeds the authored expression inventory' not in str(caught.value)
+    assert not (tmp_path/'result.json').exists()

@@ -41,9 +41,9 @@ def geometry_mesh(eqiora):
     return geometry, mesh
 
 
-def prepare(eqiora, directory):
+def prepare(eqiora, directory, *, source=None):
     geometry, mesh = geometry_mesh(eqiora)
-    source = (HERE/'model.eqi').read_bytes()
+    source = (HERE/'model.eqi').read_bytes() if source is None else source
     write(directory, 'model.eqi', source)
     write(directory, 'mesh.json', mesh.to_bytes())
     model = eqiora.compile(source=source.decode(), filename='cartesian-hex-elasticity.eqi', entry='CartesianHexElasticity', geometry=geometry,
@@ -64,11 +64,12 @@ def prepare(eqiora, directory):
     replay_field = reopened.field(field.id)
     replay_observables = tuple(reopened.observable(item.id) for item in observables)
     require(replay_field == field and replay_observables == observables, 'Model replay lost exact selected IDs')
-    authenticate_plan(replay, reopened, replay_field)
+    require(reopened.to_bytes() == model.to_bytes() and reopened.digest == model.digest, 'Model canonical replay changed')
+    authenticate_plan(replay, reopened, replay_field, authored_source_identity=model.authored_formulations[0].source_identity)
     return model, replay, replay_field, replay_observables
 
 
-def authenticate_plan(plan, model, field):
+def authenticate_plan(plan, model, field, *, authored_source_identity=None):
     wire = json.loads(plan.to_bytes())
     require(wire.get('assembly_quadrature') == {'kind': 'gauss-legendre', 'points_per_axis': 2}, 'effective assembly quadrature differs')
     require(wire.get('spatial') == {'kind': 'uniform', 'policy': 'q1'}, 'effective discrete space differs')
@@ -76,7 +77,10 @@ def authenticate_plan(plan, model, field):
     require(plan.fields == (field,), 'Plan field inventory differs')
     import eqiora
     require(plan.formulation.requested == eqiora.FormulationSelectionMode.Authored, 'authored weak form was dropped')
-    require(len(model.authored_formulations) == 1 and plan.formulation.requested_source_identity == model.authored_formulations[0].source_identity, 'selected authored weak form identity differs')
+    if authored_source_identity is None:
+        require(len(model.authored_formulations) == 1, 'fresh Model lost authored weak form inventory')
+        authored_source_identity = model.authored_formulations[0].source_identity
+    require(plan.formulation.requested_source_identity == authored_source_identity, 'selected authored weak form identity differs')
     require(plan.execution.workers == 1 and plan.execution.placement == 'host-serial', 'unexpected execution placement')
     mesh = plan.mesh
     require(mesh.dimension == 3, 'Mesh dimension differs')

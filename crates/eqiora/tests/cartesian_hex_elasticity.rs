@@ -16,8 +16,7 @@ const SIDES: [&str; 6] = [
     "x_lower", "x_upper", "y_lower", "y_upper", "z_lower", "z_upper",
 ];
 
-#[test]
-fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
+fn prepare_source(source: &str) -> Result<(), Vec<eqiora::Diagnostic>> {
     let graph = GeometryGraph::new();
     let cuboid = graph.cuboid([0., 2.], [0., 3.], [0., 4.]).unwrap();
     let mut names = BTreeMap::from([("body".to_owned(), vec![cuboid.region().into()])]);
@@ -72,11 +71,10 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
     );
     let document = ModelDocument::compile_selected(
         "cartesian-hex-elasticity.eqi",
-        SOURCE,
+        source,
         "CartesianHexElasticity",
         &bindings,
-    )
-    .unwrap();
+    )?;
     assert!(
         document
             .authored_formulation_projection()
@@ -138,7 +136,7 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
             points_per_axis: NonZeroUsize::new(2).unwrap(),
         }),
     )
-    .unwrap();
+    .map_err(|diagnostic| vec![diagnostic])?;
     let description = plan.formulation().unwrap();
     assert_eq!(
         description.requested(),
@@ -162,7 +160,63 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
     )
     .unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
+    let replay_description = replay.formulation().unwrap();
+    assert_eq!(
+        replay_description.requested(),
+        eqiora_numerics::FormulationSelectionMode::Authored
+    );
+    assert_eq!(
+        replay_description.requested_source_identity(),
+        description.requested_source_identity()
+    );
     assert_physical_hex_corners(mesh.mesh());
+    Ok(())
+}
+
+#[test]
+fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
+    prepare_source(SOURCE).unwrap();
+}
+
+#[test]
+fn altered_authored_tensor_forms_reject_before_any_result() {
+    let (equations, weak) = SOURCE.split_once("  form weak for balance {").unwrap();
+    let changed_component = format!(
+        "{}{}{}{}",
+        equations,
+        "  parameter incorrect_tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.5,0.1875]);\n",
+        "  form weak for balance {",
+        weak.replacen("trace(w),tx,", "trace(w),incorrect_tx,", 1)
+    );
+    let reversed_traction = format!(
+        "{}  form weak for balance {{{}",
+        equations,
+        weak.replacen("trace(w),tx,", "trace(w),-tx,", 1)
+    );
+    let incomplete_contraction = format!(
+        "{}  form weak for balance {{{}",
+        equations,
+        weak.replacen("axes=((0,0),(1,1))", "axes=((0,0),)", 1)
+    );
+    let wrong_unit = SOURCE.replacen("parameter tx: vector<Pa,3>", "parameter tx: vector<N,3>", 1);
+    for (control, source) in [
+        ("changed component", changed_component),
+        ("reversed traction", reversed_traction),
+        ("partial contraction", incomplete_contraction),
+        ("wrong unit", wrong_unit),
+    ] {
+        let diagnostics = prepare_source(&source).expect_err(control);
+        assert!(
+            !diagnostics.is_empty(),
+            "{control} returned no typed diagnostic"
+        );
+        assert!(
+            diagnostics.iter().all(|diagnostic| !diagnostic
+                .message
+                .contains("coefficient alias exceeds the authored expression inventory")),
+            "{control} reached the old coefficient inventory limitation"
+        );
+    }
 }
 
 fn assert_physical_hex_corners(native: &CartesianMesh) {
