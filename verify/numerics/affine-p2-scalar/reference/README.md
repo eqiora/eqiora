@@ -268,7 +268,9 @@ inverting a large rational matrix. With barred coordinates, a conservative
 physical Poincare lower bound is lambda=9d/||Bbar||_F^2. An exact local P2 mass
 matrix gives mref=1/||Mref^(-1)||_infinity>0; then
 mu=mref min_T abs(det Jbar_T) bounds the global nodal mass matrix below. Hence a
-reference coefficient residual eta bounds reference solution uncertainty by
+eta is the Euclidean norm of the complete free residual of the exact rational
+Galerkin system, using the same barred scales defined above. It bounds
+reference solution uncertainty by
 
 ```
 L2: eta/(lambda sqrt(mu)); H1 seminorm: eta/sqrt(lambda mu).
@@ -276,8 +278,11 @@ L2: eta/(lambda sqrt(mu)); H1 seminorm: eta/sqrt(lambda mu).
 
 Evaluate full candidate/reference field error squared by exact polynomial
 integration, then outward-enclose square roots. Propose reference uncertainty
-<=1e-4 of each reference error lower bound and total reference/candidate/norm
-uncertainty <=1e-3. If these cannot be certified, the level is inconclusive; no
+<=1e-4 of each strictly positive certified reference error lower bound. The
+triangle-summed reference, candidate and norm uncertainties must be <=1e-3
+relative separately to the strictly positive certified L2 error lower bound and
+the strictly positive certified H1-seminorm error lower bound. If these cannot
+be certified, the level is inconclusive; no
 candidate is launched and no allowance is enlarged from its output.
 
 Expected asymptotic orders are H1 seminorm two and L2 three for this smooth field
