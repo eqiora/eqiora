@@ -508,7 +508,15 @@ public component Affine(support body:volume(ambient_dimension=2), support left:b
         None,
     )
     .unwrap_err();
-    assert!(rejected.message().contains("foreign Geometry"));
+    assert_eq!(
+        rejected.code(),
+        eqiora_core::diagnostic::codes::INVALID_ARTIFACT
+    );
+    assert!(
+        rejected.message().contains("canonical geometry artifact"),
+        "{}",
+        rejected.message()
+    );
     for mesh in [
         owner.clone(),
         AuthenticatedCommonMesh::from_bytes(&owner.to_bytes().unwrap()).unwrap(),
