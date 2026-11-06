@@ -1,4 +1,5 @@
 //! Imported fixed-SI thermal equations through the common Cartesian Q1 lifecycle.
+#[path = "standard_thermal_package/transient.rs"]
 mod transient;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;

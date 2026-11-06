@@ -83,11 +83,10 @@ instance heat: scalar.TransientHeat2d(
 );
 ```
 
-Supply positive capacity for physical heat storage. The component declares its
-units and State role; it adds no separate positivity policy to the numerical
-method. The existing owner rejects zero storage and retains its mathematical
-negative-invertible-capacity control. Spatial and time methods remain Plan
-choices. The maintained example uses serial CPU Q1 and backward Euler, with
+Supply positive capacity for physical heat storage. The component checks units
+and the declared State role. Numerical methods retain their existing storage
+acceptance rules; no new sign policy is introduced. Spatial and time methods
+remain Plan choices. The maintained example uses serial CPU Q1 and backward Euler, with
 independent mass/stiffness/load checks, initial data, restart and artifact replay.
 This is not a continuum-exact temperature claim. State-dependent capacity,
 material interfaces, threaded/MPI/GPU package execution and transient

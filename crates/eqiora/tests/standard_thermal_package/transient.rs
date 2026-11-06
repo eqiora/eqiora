@@ -21,6 +21,17 @@ fn assert_temperatures(
     let spatial = plan.as_spatial().unwrap();
     let fields = spatial.state_fields(state).unwrap().collect::<Vec<_>>();
     assert_eq!(fields.len(), 1);
+    assert_eq!(fields[0].2.len(), 9, "the fixture has nine vertex entities");
+    assert_eq!(fields[0].3.len(), 9, "every vertex needs a temperature");
+    assert_eq!(fields[0].2.len(), fields[0].3.len());
+    assert_eq!(
+        fields[0]
+            .2
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        9
+    );
     let mesh = plan
         .authenticated_mesh()
         .unwrap()
@@ -86,7 +97,24 @@ fn imported_transient_heat_matches_independent_mass_stiffness_load_and_replays()
                 }
             });
             // The pre-existing heat-balance budget covers cancellation near 300 K.
-            let actual = output.state().spatial_values().unwrap()[4] - 300.;
+            let fields = plan
+                .as_spatial()
+                .unwrap()
+                .state_fields(output.state())
+                .unwrap()
+                .collect::<Vec<_>>();
+            let mesh = plan
+                .authenticated_mesh()
+                .unwrap()
+                .cartesian_mesh()
+                .unwrap()
+                .mesh();
+            let center = fields[0]
+                .2
+                .iter()
+                .position(|entity| mesh.vertex_coordinates(*entity).unwrap() == [0.5, 0.5])
+                .expect("the four-cell fixture has a center vertex");
+            let actual = fields[0].3[center] - 300.;
             assert!(
                 ((mass / dt + stiffness) * actual - load - mass / dt * previous).abs() <= 3e-10
             );
