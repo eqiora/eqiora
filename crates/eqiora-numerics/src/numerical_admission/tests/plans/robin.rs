@@ -97,6 +97,7 @@ fn four_robin_sources_resolve_and_replay_without_solves() {
             ty.dimension(),
             DimExponents::from_integers([0, 0, 0, 0, 1, 0, 0]).unwrap()
         );
+        assert_eq!(spatial.field_support(field.erase()).unwrap().0, [3, 3]);
         assert_eq!(spatial.field_coefficient_entities(field).unwrap().len(), 9);
     }
 }

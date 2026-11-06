@@ -162,6 +162,25 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
             .iter()
             .map(|key| binary64_hex(full.rhs()[capture.mapping.global_dof(*key).unwrap()]))
             .collect::<Vec<_>>();
+        let captured_operator_sha = write(
+            &directory.join("captured-operator.json"),
+            &json_bytes(&serde_json::json!({
+                "schema":1,"case":name,"captured_live_plan_identity":capture.plan_identity,
+                "field_id":field.ulid().to_string(),"result_identity":result.identity(),
+                "result_sha256":digest(&result_bytes),
+                "row_dual_scales":capture.dual_scales.iter().map(|(owner,scale)|serde_json::json!({
+                    "field_id":owner.ulid().to_string(),"value_binary64_hex":binary64_hex(scale.value()),
+                    "dimension":scale.dim().exponents(),
+                })).collect::<Vec<_>>(),
+                "column_scale":{"field_id":field.ulid().to_string(),
+                    "value_binary64_hex":binary64_hex(capture.mapping.field_scale(field.erase()).unwrap()),
+                    "dimension":ty.dimension().exponents()},
+                "order":coordinates.iter().map(|p|p.iter().map(ToString::to_string).collect::<Vec<_>>()).collect::<Vec<_>>(),
+                "global_dofs":keys.iter().map(|k|capture.mapping.global_dof(*k).unwrap()).collect::<Vec<_>>(),
+                "A_binary64_hex":&matrix,"b_binary64_hex":&load,
+                "units":{"coordinates":"m","A":"W/(m*K)","b":"W/m"},"physical_scales":"identity-checked",
+            })),
+        );
         // The ordinary Result above owns the same captured live occurrence.
         assert_eq!(
             crate::CommonResult::from_bytes(&result_bytes, &plan)
@@ -175,7 +194,8 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
         assert_eq!(result.field_block_count(0), 1);
         let (association, values, shape) = result.field_block(0, 0).unwrap();
         assert_eq!(association, "vertex");
-        assert_eq!(shape, [9]);
+        // Q1 Cartesian logical shape is one nodal extent per axis.
+        assert_eq!(shape, [3, 3]);
         assert_eq!(values.len(), 9);
         let entities = spatial.field_coefficient_entities(field).unwrap();
         assert_eq!(entities.len(), 9);
@@ -232,7 +252,7 @@ fn ordinary_robin_producer_exports_full_operator_coefficients_and_reactions() {
         let payload_sha = write(&directory.join("robin-input.json"), &json_bytes(&payload));
         let receipt = serde_json::json!({"schema":1,"status":"exported-not-yet-compared","ordinary_solves":1,
             "native_executable_sha256":executable_sha,"source_head":source_head,"producer_source_sha256":digest(include_bytes!("native.rs")),
-            "input_sha256":payload_sha,"model_sha256":digest(&model_bytes),"plan_sha256":digest(&plan_bytes),
+            "input_sha256":payload_sha,"captured_operator_sha256":captured_operator_sha,"model_sha256":digest(&model_bytes),"plan_sha256":digest(&plan_bytes),
             "mesh_sha256":digest(&mesh_bytes),"result_sha256":digest(&result_bytes),"plan_identity":plan.identity(),
             "model_digest":spatial.model_digest(),"mesh_digest":spatial.mesh_digest(),"result_identity":result.identity(),
             "field_id":field.ulid().to_string(),"coefficient_entities":entities.iter().map(|e|[e.dimension(),e.index()]).collect::<Vec<_>>(),
