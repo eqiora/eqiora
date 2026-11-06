@@ -147,8 +147,10 @@ fn imported_transient_heat_flux_preserves_time_linear_affine_manufactured_soluti
     for slope in [-1, 1] {
         let flux = -2 * slope;
         let source = format!("{IMPORT}{SIGNATURE}
+ variable initial_profile: K on body in smooth;
+ relation initial_data on body {{ initial_profile = 300[K] + {slope}[K/m] * coordinate(0); }}
  state temperature: K on body in smooth;
- initial {{temperature = 300[K] + {slope}[K/m] * coordinate(0);}}
+ initial {{temperature = initial_profile;}}
  instance heat: scalar.TransientHeat2d(body=body, temperature=temperature,
  conductivity=2[W/(m*K)], capacity=2[J/(m^3*K)], heating=2[W/m^3]);
  instance left_value: scalar.FixedTemperature2d(body=body, face=left, temperature=temperature, value=300[K]+time()*1[K/s]);
