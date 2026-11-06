@@ -127,7 +127,7 @@ fn resolve(source: &str) -> Result<ResolvedCommonPlan, String> {
 }
 
 fn resolve_temporal(source: &str, step: Option<f64>) -> Result<ResolvedCommonPlan, String> {
-    let (document, owner) = fixture(source).map_err(|error| error.to_string())?;
+    let (document, owner) = fixture(source).map_err(|error| format!("{error:?}"))?;
     assert!(matches!(document, SourceCompilation::Packaged(_)));
     let model = ModelEnvelope::from_program(document.model().program()).unwrap();
     let linear = CommonLinearRequest::exact(
