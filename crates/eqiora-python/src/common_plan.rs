@@ -50,9 +50,10 @@ mod registration;
 pub(crate) mod solver_request;
 use policy::{
     PyBackwardEuler, PyBdf, PyCellCentered, PyCellCenteredTpfa, PyEulerMaruyama,
-    PyImplicitMidpoint, PyLinear, PyMiniP1, PyNewton, PyP1, PyPoissonEvents, PyPressureGauge2d,
-    PyQ1, PyQ2, PyScopedSpatialBinding, PySolverPlanningObjective, PyTetrahedralEdge,
-    PyTetrahedralFace, PyTsitouras45, ScopedSpatialKind, spatial_handle_from_request,
+    PyImplicitMidpoint, PyLinear, PyMiniP1, PyNewton, PyP1, PyP2, PyPoissonEvents,
+    PyPressureGauge2d, PyQ1, PyQ2, PyScopedSpatialBinding, PySolverPlanningObjective,
+    PyTetrahedralEdge, PyTetrahedralFace, PyTsitouras45, ScopedSpatialKind,
+    spatial_handle_from_request,
 };
 pub(crate) use registration::register;
 mod scaling;
@@ -66,6 +67,7 @@ use resolved_execution::PyResolvedExecution;
 enum SpatialPolicy {
     Q1,
     Q2,
+    P2,
     TetrahedralEdge,
     TetrahedralFace,
     CellCenteredTpfa,
@@ -630,6 +632,7 @@ impl PyPlan {
                 }
                 SpatialHandle::Uniform(SpatialPolicy::Q1) => Py::new(py, PyQ1).map(Py::into_any),
                 SpatialHandle::Uniform(SpatialPolicy::Q2) => Py::new(py, PyQ2).map(Py::into_any),
+                SpatialHandle::Uniform(SpatialPolicy::P2) => Py::new(py, PyP2).map(Py::into_any),
                 SpatialHandle::Uniform(SpatialPolicy::CellCenteredTpfa) => {
                     Py::new(py, PyCellCenteredTpfa).map(Py::into_any)
                 }

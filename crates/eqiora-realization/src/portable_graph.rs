@@ -661,19 +661,14 @@ impl PortableRealizationGraph {
         }
         let system = &self.systems[0];
         validate_system(self, system)?;
-        // Every graph retains method/mesh/Space compatibility. Dimensional
-        // graphs additionally retain their basis-product quadrature floor;
-        // scaled field-wise profiles have equation-specific exactness requirements.
+        // The portable graph owns structural compatibility. Equation-aware
+        // consumers validate their bound forms; standalone RealizationPlan
+        // retains its stronger basis-product integration requirement.
         for field in &self.fields {
-            let discretization = self
-                .domain(field.domain)
+            self.domain(field.domain)
                 .expect("validated Domain reference")
-                .discretization;
-            if system.scaling == SystemScaling::Dimensional {
-                discretization.validate_space(field.space)?;
-            } else {
-                discretization.validate_space_compatibility(field.space)?;
-            }
+                .discretization
+                .validate_space_compatibility(field.space)?;
         }
 
         let linear = &self.linear_solves[0];

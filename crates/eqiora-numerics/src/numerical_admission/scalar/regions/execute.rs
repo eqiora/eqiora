@@ -116,7 +116,7 @@ impl<S: Coefficient + Send + Sync> ExecutableSpatialEquations<S> {
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }
                 if spaces.iter().all(|space| {
                     matches!(space.family(),
-                    SpaceFamily::ContinuousLagrange { order } if order == std::num::NonZeroU16::MIN)
+                    SpaceFamily::ContinuousLagrange { order } if order.get() <= 2)
                         || matches!(
                             space.family(),
                             SpaceFamily::SimplexP1Bubble

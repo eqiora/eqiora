@@ -100,23 +100,17 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
     }
 }
 
-/// Use the Space owner's minimum while retaining the existing three-point floor.
+/// Keep the established simplex accuracy floor; bound forms own exactness.
 fn simplex_quadrature_points(
     dimension: usize,
     selected: &[eqiora_realization::DomainFieldDiscretization],
 ) -> Result<usize, Diagnostic> {
-    let dimension =
-        NonZeroUsize::new(dimension).ok_or_else(|| invalid("simplex dimension is zero"))?;
-    selected
-        .iter()
-        .flat_map(|domain| domain.field_spaces())
-        .try_fold(3, |points, field| {
-            field
-                .space()
-                .minimum_simplex_duffy_points(dimension)
-                .map(|minimum| points.max(minimum.get()))
-                .ok_or_else(|| invalid("Space has no admitted simplex Duffy quadrature"))
-        })
+    let reference = eqiora_meshing::ReferenceCell::simplex(dimension)?;
+    for field in selected.iter().flat_map(|domain| domain.field_spaces()) {
+        // No default for an unknown or unbound Space/reference combination.
+        crate::discrete_space::DiscreteSpace::new(field.space(), reference)?;
+    }
+    Ok(3)
 }
 
 #[cfg(test)]
@@ -136,7 +130,11 @@ mod tests {
         )
         .unwrap()];
         for d in [2usize, 3] {
-            let points = simplex_quadrature_points(d, &selected).unwrap();
+            let points = selected[0].field_spaces()[0]
+                .space()
+                .minimum_simplex_duffy_points(NonZeroUsize::new(d).unwrap())
+                .unwrap()
+                .get();
             let normalization = ((d + 1) as f64).powi((d + 1) as i32);
             // On the unit d-simplex, integral(prod lambda_i^2)=2!^(d+1)/(3d+2)!.
             // This evaluates the normalized bubble algebraically, not through the FE basis.

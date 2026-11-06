@@ -38,6 +38,9 @@ impl Space {
             (SpaceFamily::ContinuousLagrange { order }, 2 | 3) if order == NonZeroU16::MIN => {
                 (d + 2).div_ceil(2)
             }
+            (SpaceFamily::ContinuousLagrange { order }, 2 | 3) if order.get() == 2 => {
+                (d + 4).div_ceil(2)
+            }
             // Bubble degree d+1 gives squared degree 2(d+1); the Duffy
             // Jacobian adds d-1 to the largest transformed axis degree.
             (SpaceFamily::SimplexP1Bubble, 2 | 3) => (3 * d + 2).div_ceil(2),

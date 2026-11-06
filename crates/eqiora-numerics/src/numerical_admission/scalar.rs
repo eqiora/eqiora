@@ -616,7 +616,14 @@ impl CommonSpatialPlan {
                 _ => Err(invalid("Field requires exact spatial equations")),
             };
         }
-        if representation.space() == Space::simplex_p1_bubble() {
+        if representation.space() == Space::simplex_p1_bubble()
+            || (matches!(representation.space().family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+                && matches!(
+                    self.admission.resources(),
+                    NativeMeshResources::MshSimplicial { .. }
+                        | NativeMeshResources::AffineTriangleSimplicial { .. }
+                ))
+        {
             self.reauthenticate_portable_realization()?;
             let (NativeMeshResources::MshSimplicial { mesh, .. }
             | NativeMeshResources::AffineTriangleSimplicial { mesh, .. }) =

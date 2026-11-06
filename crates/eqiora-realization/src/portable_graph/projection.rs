@@ -33,6 +33,7 @@ impl ResolvedRealization {
     ) -> Result<PortableRealizationGraph, Diagnostic> {
         self.require_admitted_operator_properties(operator_properties)?;
         let plan = self.plan();
+        plan.validate()?;
         let requirements = self.requirements();
         PortableRealizationGraph::spatial_regions(
             RealizationLineage::new(self.model(), self.semantic_revision(), self.source()),

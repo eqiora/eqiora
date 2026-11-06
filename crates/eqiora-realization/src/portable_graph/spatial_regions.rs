@@ -46,7 +46,7 @@ impl PortableRealizationGraph {
         let mut fields = Vec::new();
         for (index, region) in regions.iter().enumerate() {
             for binding in region.field_spaces() {
-                discretization.validate_space(binding.space())?;
+                discretization.validate_space_compatibility(binding.space())?;
                 fields.push(FieldRepresentationNode {
                     domain: DomainDiscretizationId::new(index),
                     field: binding.field(),

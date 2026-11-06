@@ -37,7 +37,7 @@ pub(crate) fn validate_resources(
             && (request.policies().all(|policy| {
                 matches!(
                     policy,
-                    CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1
+                    CommonSpatialPolicy::P1 | CommonSpatialPolicy::P2 | CommonSpatialPolicy::MiniP1
                 )
             }) || (mesh.dimension() == 3
                 && request.policies().all(|policy| {
@@ -55,7 +55,7 @@ pub(crate) fn validate_resources(
         ) if request.policies().all(|policy| {
             matches!(
                 policy,
-                CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1
+                CommonSpatialPolicy::P1 | CommonSpatialPolicy::P2 | CommonSpatialPolicy::MiniP1
             )
         }) && mesh.dimension() == 2 =>
         {
