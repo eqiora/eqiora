@@ -105,8 +105,8 @@ architecture-ceiling increase.
 
 The traction rows integrate the constitutive law directly on x=0. For each
 adjacent cell, ∫face ∂x N_a=(2a_x−1) H_y H_z/(4H_x),
-∫face ∂y N_a=1[a_x=0](2a_y−1)H_z/2, and
-∫face ∂z N_a=1[a_x=0](2a_z−1)H_y/2. Assemble
+∫face ∂y N_a=1[a_x=0] · (2a_y−1)H_z/2, and
+∫face ∂z N_a=1[a_x=0] · (2a_z−1)H_y/2. Assemble
 σ_i0=μ(∂x v_i+∂i v_x)+λ δ_i0 div(v) and negate for the outward
 normal. Summing shared-node contributions before taking absolute values gives
 the exact row norms above. Norms from per-cell triangle inequalities would be
