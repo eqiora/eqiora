@@ -22,8 +22,8 @@ def main():
     for name in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','RAYON_NUM_THREADS'):
         os.environ[name] = '1'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
-    if os.environ.get('LD_LIBRARY_PATH') or os.environ.get('LD_PRELOAD'):
-        raise RuntimeError('registered runtime must not depend on loader overrides')
+    if os.environ.get('LD_PRELOAD'):
+        raise RuntimeError('registered runtime must not use LD_PRELOAD')
     import recheck_saved
     recheck_saved.main()
     from production import extract, prepare, require, sha256, write
@@ -33,6 +33,16 @@ def main():
     extension = Path(native.__file__).resolve()
     runtime = {'native_module':str(extension),'native_module_sha256':sha256(extension.read_bytes()),
                'eqiora_version':importlib.metadata.version('eqiora'),'runtime_source_commit':None}
+    dependencies = subprocess.check_output(['ldd',str(extension)],text=True)
+    require('not found' not in dependencies,'registered runtime has unresolved shared libraries')
+    libraries = {}
+    for line in dependencies.splitlines():
+        parts = line.strip().split()
+        path = Path(parts[2]) if '=>' in parts else Path(parts[0]) if parts else None
+        if path is not None and path.is_absolute() and path.is_file():
+            libraries[str(path.resolve())] = sha256(path.resolve().read_bytes())
+    runtime.update(linkage_scope='recorded standard source-gate environment; no self-contained wheel claim',
+                   loader_dependencies=dependencies,resolved_library_sha256=libraries)
     receipt_path = os.environ.get('EQIORA_HEX_REGISTERED_RUNTIME_RECEIPT')
     if receipt_path:
         receipt_bytes = Path(receipt_path).read_bytes()

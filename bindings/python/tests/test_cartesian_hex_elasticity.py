@@ -81,7 +81,6 @@ def test_registered_hex_complete_field_and_functionals():
     import subprocess
     import sys
     environment = dict(os.environ)
-    environment.pop('LD_LIBRARY_PATH',None)
     environment.pop('LD_PRELOAD',None)
     completed = subprocess.run([sys.executable,'-I',str(CASE/'registered.py')],cwd=ROOT,
         env=environment,capture_output=True,text=True)
