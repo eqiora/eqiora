@@ -8,6 +8,20 @@ from exact import mesh
 from refinement import assemble,enclosure_sqrt
 
 
+def _norm_gate(r,distance_upper,error_lower,error_upper,name):
+    reference_uncertainty=Q(r['approximation_uncertainty_upper'])
+    lower=Q(r['lower']);allowance=lower/Q(1000)
+    reference_norm_width=Q(r['upper'])-lower-2*reference_uncertainty
+    if reference_uncertainty<0 or reference_norm_width<0 or error_lower>error_upper:
+        raise ValueError('invalid certified norm enclosure')
+    combined=distance_upper+reference_uncertainty+reference_norm_width+(error_upper-error_lower)
+    if lower<=0 or combined>allowance:raise ValueError(f'{name} combined numeric allocation exceeded')
+    if error_lower<lower-allowance or error_upper>Q(r['upper'])+allowance:
+        raise ValueError(f'{name} finite-level error interval exceeded')
+    return {'combined_uncertainty_upper':str(combined),'allowance':str(allowance),
+            'error_lower':str(error_lower),'error_upper':str(error_upper)}
+
+
 def compare(reference, records):
     d=reference['dimension'];n=reference['N']
     nodes=mesh(d,n)[3]
@@ -22,32 +36,31 @@ def compare(reference, records):
         text=row['value_binary64_hex'];value=float.fromhex(text)
         if value.hex()!=text:raise ValueError('noncanonical binary64 value')
         candidate[i]=Q.from_float(value)
+    expected=[Q.from_float(float.fromhex(x)) for x in reference['coefficients_binary64_hex']]
+    if len(expected)!=len(nodes):raise ValueError('incomplete frozen reference vector')
+    if candidate==expected:
+        # Reuse the authenticated saved certificate only for an exactly identical
+        # complete vector. Its field distance is exactly zero, without assembly.
+        # The producer still owns binding the supplied reference to frozen bytes.
+        output={}
+        for name in ('L2','H1_seminorm'):
+            r=reference[name];unc=Q(r['approximation_uncertainty_upper'])
+            output[name]=_norm_gate(r,Q(0),Q(r['lower'])+unc,Q(r['upper'])-unc,name)
+        return output
     K,M,F,U,essential,detB,metric,_=assemble(d,n)
     if any(candidate[i] for i in essential):raise ValueError('nonzero essential trace')
-    expected=[Q.from_float(float.fromhex(x)) for x in reference['coefficients_binary64_hex']]
     delta=[a-b for a,b in zip(candidate,expected)]
     output={}
     for name,matrix in [('L2',M),('H1_seminorm',K)]:
         squared=sum(delta[i]*sum(a*delta[j] for j,a in row.items()) for i,row in enumerate(matrix))
         _,upper=enclosure_sqrt(squared)
-        r=reference[name]
-        # Triangle inequality: exact candidate-to-retained-reference distance,
-        # certified retained-reference-to-Galerkin distance, and sqrt enclosure.
-        reference_uncertainty=Q(r['approximation_uncertainty_upper'])
-        lower=Q(r['lower']); allowance=lower/Q(1000)
-        reference_norm_width=Q(r['upper'])-lower-2*reference_uncertainty
         def quadratic(vector):
             return sum(candidate[i]*sum(a*candidate[j] for j,a in row.items()) for i,row in enumerate(vector))
         exact=detB/Q(30**d) if name=='L2' else detB*sum(metric[i][i] for i in range(d))/Q(3*30**(d-1))
         cross=U if name=='L2' else F
         error_squared=exact+quadratic(matrix)-2*sum(a*b for a,b in zip(candidate,cross))
         error_lower,error_upper=enclosure_sqrt(error_squared)
-        combined=upper+reference_uncertainty+reference_norm_width+(error_upper-error_lower)
-        if lower<=0 or combined>allowance:raise ValueError(f'{name} combined numeric allocation exceeded')
-        if error_lower<lower-allowance or error_upper>Q(r['upper'])+allowance:
-            raise ValueError(f'{name} finite-level error interval exceeded')
-        output[name]={'combined_uncertainty_upper':str(combined),'allowance':str(allowance),
-                      'error_lower':str(error_lower),'error_upper':str(error_upper)}
+        output[name]=_norm_gate(reference[name],upper,error_lower,error_upper,name)
     return output
 
 

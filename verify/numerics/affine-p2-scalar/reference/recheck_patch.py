@@ -8,7 +8,7 @@ from generate_patch import generate
 from patch_gate import check
 
 
-def main():
+def load_packet():
     root=Path(__file__).with_name('data')
     manifest=json.loads((root/'manifest.json').read_text())
     path=root/manifest['patch']['file']
@@ -17,6 +17,11 @@ def main():
     if hashlib.sha256(raw).hexdigest()!=manifest['patch']['uncompressed_sha256']:raise ValueError('original patch bytes digest mismatch')
     packet=json.loads(raw)
     if [p['dimension'] for p in packet['patches']]!=[2,3]:raise ValueError('incomplete dimension set')
+    return packet
+
+
+def main():
+    packet=load_packet()
     for p in packet['patches']:
         generated=json.loads(json.dumps(generate(p['dimension']),default=str))
         if generated!=p:raise ValueError('exact patch operator/inverse mismatch')

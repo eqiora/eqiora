@@ -402,3 +402,19 @@ its sum must pass the unchanged normalized reaction budgets. A future producer
 must separately record whether it obtained this vector from an existing native
 API. Reference-assembled actions are never a substitute for a native witness;
 the rational actions in this packet establish the mathematical expectation only.
+
+The distinct natural-flux-sign falsifier uses the retained exact free inverse:
+with the essential values unchanged, set v_wrong,F=v_exact,F-2 K_FF^(-1) G_F.
+Both dimensions verify K v_wrong-F+G=0 on every free row by rational arithmetic,
+then require the unchanged true-problem patch gate to reject that vector.
+Negating constrained actions is tested separately and does not stand in for
+this wrong-boundary-data problem.
+
+The positive complete-level orchestration test supplies all retained reference
+coefficients at every physical node for both dimensions. When the entire vector
+is identical, its distance to the certified reference is exactly zero. The
+comparator reuses the saved norm enclosures, passes them through the same norm
+and finite-rate gates, and does not assemble six new systems. The saved
+certificates were separately replayed from exact residuals and full-field norms;
+the later producer remains responsible for binding the reference to those frozen
+bytes. A test guard rejects any attempted assembly in this orchestration check.
