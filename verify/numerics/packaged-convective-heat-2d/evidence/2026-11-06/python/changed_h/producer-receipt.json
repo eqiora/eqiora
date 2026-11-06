@@ -1,0 +1,207 @@
+{
+  "schema": 1,
+  "case": "changed_h",
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "producer_source_sha256": "f4d6056845d0f894f7e23bb443ebe8f9d436bedc2cb01e240985ea8b6d2add04",
+  "oracle_sha256": "200cc1ff5de8327d438506a75e4af59e03b188e730d4fb2b2b653ea06caa507d",
+  "python_executable_sha256": "4419b7eee48ee6189e5237dfd885e4bdca5ac41b57a9e6eef1af761db5e2cbff",
+  "native_extension_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+  "native_extension_sha256": "41252b8404c826756b7891ce52d4e423403fb6ad2cf7a16fdf5ac7a060689256",
+  "artifact_sha256": {
+    "model.json": "64e97ab011770fb1cafc44c3e6fb4dae0466f9bd6e68f15bc1f64ca64b14b71d",
+    "mesh.eqmesh": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+    "plan.eqplan": "0b96e1b22df7c9bf5b7f9ec33dd83e9fe6175caec1fd972fd209bd7164af8be2",
+    "result.eqresult": "d7f85aaeb8e4b0b6cf1f15f1a477507f823fbf5f9aa7f3925f6951a993708d58",
+    "observations.json": "6f489ae2ce8bd5801ccd922272c4a402e37d570f072e780592e01cf181855048"
+  },
+  "package_compilation_digest": "4077841c0d0a98bb2bbf21c91ad74532ace6ca058c424509bf077d0c5b3677e4",
+  "model_digest": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+  "plan_identity": "24ca087d946eeaab74d674753df5731151c50d3f5703a9d544a406477ebbb084",
+  "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+  "field_id": "4F3PFC1SH8P7WXEFKWQRG7N11Q",
+  "coefficient_entities": [
+    {
+      "entity_dimension": 0,
+      "entity_index": 0,
+      "coordinates_m": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 1,
+      "coordinates_m": [
+        0.0,
+        0.5
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 2,
+      "coordinates_m": [
+        0.0,
+        1.0
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 3,
+      "coordinates_m": [
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 4,
+      "coordinates_m": [
+        1.0,
+        0.5
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 5,
+      "coordinates_m": [
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 6,
+      "coordinates_m": [
+        2.0,
+        0.0
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 7,
+      "coordinates_m": [
+        2.0,
+        0.5
+      ]
+    },
+    {
+      "entity_dimension": 0,
+      "entity_index": 8,
+      "coordinates_m": [
+        2.0,
+        1.0
+      ]
+    }
+  ],
+  "observables": [
+    {
+      "name": "left_heat",
+      "observable_id": "3KKZHVD77Q2M495MA65GR351E9",
+      "model_digest": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+      "boundary_domain_id": "6SDGZVAY4S1ZNZVEJS0E919NDQ",
+      "authored_boundary": "x_lower",
+      "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "replay_result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "value_type": "ValueType(domain=\"real\", dimension=[(1, 1), (1, 1), (-3, 1), (0, 1), (0, 1), (0, 1), (0, 1)], shape=[], array_rank=0, frame=\"invariant\")",
+      "quadratures": {
+        "6SDGZVAY4S1ZNZVEJS0E919NDQ": [
+          "GaussLegendre",
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "right_heat",
+      "observable_id": "21PVGVQRBY82DYEE97ST0BA4N3",
+      "model_digest": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+      "boundary_domain_id": "000BZQP34334PKEEH6YNET47XA",
+      "authored_boundary": "x_upper",
+      "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "replay_result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "value_type": "ValueType(domain=\"real\", dimension=[(1, 1), (1, 1), (-3, 1), (0, 1), (0, 1), (0, 1), (0, 1)], shape=[], array_rank=0, frame=\"invariant\")",
+      "quadratures": {
+        "000BZQP34334PKEEH6YNET47XA": [
+          "GaussLegendre",
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "bottom_heat",
+      "observable_id": "5APS8WQ8CFEJHYED3YVRZYBK33",
+      "model_digest": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+      "boundary_domain_id": "7C9E4CNEVDD6F39K7A8P70170G",
+      "authored_boundary": "y_lower",
+      "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "replay_result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "value_type": "ValueType(domain=\"real\", dimension=[(1, 1), (1, 1), (-3, 1), (0, 1), (0, 1), (0, 1), (0, 1)], shape=[], array_rank=0, frame=\"invariant\")",
+      "quadratures": {
+        "7C9E4CNEVDD6F39K7A8P70170G": [
+          "GaussLegendre",
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "top_heat",
+      "observable_id": "23EFKYDWJ1ZWRGHM4NK04KEMRJ",
+      "model_digest": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+      "boundary_domain_id": "6WBCNBK9V7ASDDVXY5EHWFFZQM",
+      "authored_boundary": "y_upper",
+      "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "replay_result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "value_type": "ValueType(domain=\"real\", dimension=[(1, 1), (1, 1), (-3, 1), (0, 1), (0, 1), (0, 1), (0, 1)], shape=[], array_rank=0, frame=\"invariant\")",
+      "quadratures": {
+        "6WBCNBK9V7ASDDVXY5EHWFFZQM": [
+          "GaussLegendre",
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "right_temperature",
+      "observable_id": "25C1BW34AC0G4662SN21Q3E8W0",
+      "model_digest": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+      "boundary_domain_id": "000BZQP34334PKEEH6YNET47XA",
+      "authored_boundary": "x_upper",
+      "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "replay_result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "value_type": "ValueType(domain=\"real\", dimension=[(0, 1), (1, 1), (0, 1), (0, 1), (1, 1), (0, 1), (0, 1)], shape=[], array_rank=0, frame=\"invariant\")",
+      "quadratures": {
+        "000BZQP34334PKEEH6YNET47XA": [
+          "GaussLegendre",
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "name": "right_convective_heat",
+      "observable_id": "0NZQ2K2RBGEXS4EXH1BCBKYM6B",
+      "model_digest": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+      "boundary_domain_id": "000BZQP34334PKEEH6YNET47XA",
+      "authored_boundary": "x_upper",
+      "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "replay_result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c",
+      "value_type": "ValueType(domain=\"real\", dimension=[(1, 1), (1, 1), (-3, 1), (0, 1), (0, 1), (0, 1), (0, 1)], shape=[], array_rank=0, frame=\"invariant\")",
+      "quadratures": {
+        "000BZQP34334PKEEH6YNET47XA": [
+          "GaussLegendre",
+          1,
+          2
+        ]
+      }
+    }
+  ],
+  "ordinary_public_runs": 1,
+  "canonical_model_reopen": true,
+  "canonical_plan_reopen": true,
+  "canonical_result_reopen": true,
+  "replay_coefficients_equal": true,
+  "offline_compilation_equal": true,
+  "scope": "public coefficients and observations; no full A/b or private weak reactions"
+}

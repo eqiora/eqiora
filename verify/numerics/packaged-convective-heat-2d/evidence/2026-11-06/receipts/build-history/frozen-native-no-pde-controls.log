@@ -1,0 +1,24 @@
+
+running 1 test
+test robin::observations::canonical_binary64_hex_covers_zero_subnormal_and_exponent_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+
+running 1 test
+test robin::imported_convection_compiles_with_exact_caller_supports_and_required_inputs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.37s
+
+
+running 1 test
+test robin::convection_rejects_wrong_units_regularity_parent_and_missing_inputs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.21s
+
+
+running 1 test
+test robin::convection_rejects_boundary_from_another_parent ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.06s
+

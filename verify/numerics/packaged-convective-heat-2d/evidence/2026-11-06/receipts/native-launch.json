@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "kind": "native",
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "source_tree": "6fd1c08983340ade596474d49de72ad1f58b4482",
+  "pid": 671007,
+  "started_utc": "2026-11-06T11:58:44.144446+00:00",
+  "command": [
+    "taskset",
+    "-c",
+    "3",
+    "/data/nk523/tmp/eqiora-scalar-convection/target/debug/deps/standard_thermal_package-ff1beb6dda49cefe",
+    "--exact",
+    "robin::observations::imported_convection_public_observations_and_artifact_replay_match_reference",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "environment": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1",
+    "BLIS_NUM_THREADS": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "HIP_VISIBLE_DEVICES": "",
+    "ROCR_VISIBLE_DEVICES": "",
+    "TMPDIR": "/data/nk523/tmp/eqiora-scalar-convection/scratch",
+    "PYTHONNOUSERSITE": "1",
+    "EQIORA_ROBIN_PACKAGE_EVIDENCE": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1"
+  },
+  "unset_environment": [
+    "PYTHONPATH",
+    "LD_LIBRARY_PATH"
+  ],
+  "evidence_root": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1",
+  "executable_path": "/data/nk523/tmp/eqiora-scalar-convection/target/debug/deps/standard_thermal_package-ff1beb6dda49cefe",
+  "executable_sha256": "d5f1f1d3e09428f83b1af942512dea6bd8506aef70c39f6636cf62c1d5879584",
+  "build_receipt_sha256": "45164dc292d43bc1b2a58eb72c1164dab47cba2a5da344d2b689c25d5de6e890",
+  "exit_code": 0,
+  "finished_utc": "2026-11-06T11:59:06.821191+00:00"
+}

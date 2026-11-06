@@ -1,0 +1,216 @@
+{
+  "schema": 1,
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "native": [
+    {
+      "case": "insulated",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/insulated",
+      "report_sha256": "792804f51a5e8cbf6898ab021667ea16e4e0fc61cf8a22a6a05b91339858e3df",
+      "input_sha256": "3a6e5259cfdc69230ad10d6cedbffff2487becc32c105885998e7ef536ca1f1c",
+      "producer_receipt_sha256": "d69f0311fb903579a6652207950b1193faaa904283aa81de73e788cad3549958",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "7a0f5c6ec2406272d8129fc4c4fee0845c731eae96448328c237242830b5d242",
+        "plan.eqplan": "40f133e9b418f860ec22ca6c0dba37d12a598cd50169d5c36eee7095fdc82949",
+        "mesh.eqmesh": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+        "result.eqresult": "436f7919869eadcf28b6306a2db844f424225473f434ad67c5c1ff24379fe9da",
+        "package-compilation.json": "d17b83d3c8724b229b17d32a89775a991a488a1a4f6039471db23516945aa3d9",
+        "observations.json": "3a6e5259cfdc69230ad10d6cedbffff2487becc32c105885998e7ef536ca1f1c"
+      },
+      "model_identity": null,
+      "plan_identity": "9b22fcc2601199c45a387cfe1f366c1b4407fecfdd7fe2ffa21a7b17080f59db",
+      "result_identity": "e03b434267c6cf7e8f4aea95e0eef1e6a0440b435f4188d686733a29bbe459e5"
+    },
+    {
+      "case": "robin",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/robin",
+      "report_sha256": "2fd54bf4b40d8832c72b1f310b183d12ca14be26a88a8b2794e33abc532677a6",
+      "input_sha256": "2ff9e0a800be8df403c303f097fc305e99dcf664614acf1d98cb824ec95d9ed4",
+      "producer_receipt_sha256": "dd01d2b5928028cb7828c126a37cc2e5e01ec308567552dc0824213c77b33c4c",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "454d83a73e37a576464dbc025da664b440794b4b44a53f1ef680d4ea9b9abd8b",
+        "plan.eqplan": "303346030517ec3bdd51cc0d88451bd301582cee56c2dfb54dff86c3d638f812",
+        "mesh.eqmesh": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+        "result.eqresult": "43cb428c8c69362df1f106ad2894c13e4038929bf3b69627775cc7dc4d78426a",
+        "package-compilation.json": "27a175793a8cc2304b8e6e69b2c644d432044f5af9afb76f58f401bd33b48ad8",
+        "observations.json": "2ff9e0a800be8df403c303f097fc305e99dcf664614acf1d98cb824ec95d9ed4"
+      },
+      "model_identity": null,
+      "plan_identity": "882002a12befac6f48e40b362c214d8e153aa71a430d9f9b7100972b0f0e7cc2",
+      "result_identity": "c3e65b6b0e9144feccdba052f3183ca89b1ad5edee16356eb128fae1428526ab"
+    },
+    {
+      "case": "changed_h",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_h",
+      "report_sha256": "10cd0927405a5137af4517e5530821fd92613aaa84061baec584c8066ee8e318",
+      "input_sha256": "2369419ac5e283e62b4abdc2465e8bc9b942b0c47c153c3d7cc6280bc2275a20",
+      "producer_receipt_sha256": "b27249474549c92cef2aadbeef85bfc56040c19c3162d62ac1b4cb0e3efb700c",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "8371236e2141c5d25a6e43b4297462ff778511bad16e1a4df6f0a898e21a1b45",
+        "plan.eqplan": "d3e8f0f5eb8fd48473e94548148b3b185bb7640dda9c1977a03623961549184b",
+        "mesh.eqmesh": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+        "result.eqresult": "c3cf5cf3bbfca599bd08c2b89fec53096a739a06a899513a716283ab9f8d82e6",
+        "package-compilation.json": "15afabdfedc2615918812b35321e39b120c0685b93195febec8e7b379e842ec0",
+        "observations.json": "2369419ac5e283e62b4abdc2465e8bc9b942b0c47c153c3d7cc6280bc2275a20"
+      },
+      "model_identity": null,
+      "plan_identity": "62014ba0782ce9f63cbb85e5655a844f03b6d59eb5b650128bf522404095d5c1",
+      "result_identity": "f0c298bb15de8f5ff27243997532ce452496a9f1f03ef3aee8b65a137b89f436"
+    },
+    {
+      "case": "changed_geometry_material_cooling",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-native-d3fd-attempt1/changed_geometry_material_cooling",
+      "report_sha256": "dddb9725d62b075b1aaf824b3ee5437ea618c0b0df7d2be055538d85f391cf21",
+      "input_sha256": "8ca2e7d938afe15afc2fe1317dd8c09114f79f51cf8ee16b97686df14781b11e",
+      "producer_receipt_sha256": "f75a86ffd38dae143d7597b8a33b561402764da4cfaa525e005cc75e39bc99db",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "e39387ff265a7bb3d6f3479064b7335ad61fac37077e279d78ba476e9a40ab2a",
+        "plan.eqplan": "548ff7a9fbc046311300f154c987712b5606b8e0ecd0d5f303c00f543d09ec73",
+        "mesh.eqmesh": "9534ff9ea197b440ba882d12f51e3d133e3d27cec56cd03c0f234f747e2fe322",
+        "result.eqresult": "5e166c3d184b4a7dd83d66ff7034a42f1a4b34e644ce0ca050e961e6c65a9304",
+        "package-compilation.json": "498f2192f0a16ca72f37547130632df5be8bdd6796b4a4bbfae5d79ae6d1e96b",
+        "observations.json": "8ca2e7d938afe15afc2fe1317dd8c09114f79f51cf8ee16b97686df14781b11e"
+      },
+      "model_identity": null,
+      "plan_identity": "e21d9822b7ba392a8352ff54f26d336673896ddc6cccbeaa98db775c3dd9318f",
+      "result_identity": "942be9d00d24fb913e82302368aabf4ff4f52f20112a54a51cd0823144e5d9a3"
+    }
+  ],
+  "python": [
+    {
+      "case": "insulated",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/insulated",
+      "report_sha256": "dbf9b6d73ed9c5d459fc3d16e0b674fdbc15c9c3a701246f81d0717309b6c129",
+      "input_sha256": "c97d3d131945cd71abce7e1759091e16905eb06e0395d87e48d7e06b31e5cfd2",
+      "producer_receipt_sha256": "f2473053bf5160bbfcb220f5ffa67b6f2f6776b7a2c7e1e643da0591b5d895da",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "01fadbef6a05e7af86101f0a016de59a6ed7e3367c478cadddafb0f0b6170f69",
+        "mesh.eqmesh": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+        "plan.eqplan": "15495e22789276f432b9082675d8567ed94ced2b2a365b75b0e55ee66a2e5c5e",
+        "result.eqresult": "8bab960e61d5e747c17d31ff2e0dc375295bd97c110ef4a89daddcd319304da7",
+        "observations.json": "c97d3d131945cd71abce7e1759091e16905eb06e0395d87e48d7e06b31e5cfd2"
+      },
+      "model_identity": "925b1f936e52910f2d815816e532fa6c65af67b33a81339a8e78f74d03c34f5f",
+      "plan_identity": "46646edbd3f1c9231f143857778e90d4bda6b9de15162647778b7ece6afe5792",
+      "result_identity": "22155b181affe1895071ea40e12d2d52ca25cacd2624877ba65664b0460279df"
+    },
+    {
+      "case": "robin",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/robin",
+      "report_sha256": "59afc33c6a5976a9690c544c65a053693628e0908b26a6a169ab9d7626485f1f",
+      "input_sha256": "e51b2d9f9ee25f3d934197268569c1d228b5c9480859ac178544d50de20ce373",
+      "producer_receipt_sha256": "a221df7e522fb5f5a6affd3f8786f29d65c07b5545d0b571d517b132cf6ac285",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "dbb7bb5a8e5f50cbdb07324f84d0089d09de480a6b8623400bbd0eefb056112b",
+        "mesh.eqmesh": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+        "plan.eqplan": "bc95dceecd6081d6a0c197cb6980dd75cec615d7bb739e16d9fef04d00592899",
+        "result.eqresult": "b88c674357ecb10d402ebfbf7b4004b69ba61dd6fcc3b5aca36ebee8b98586f8",
+        "observations.json": "e51b2d9f9ee25f3d934197268569c1d228b5c9480859ac178544d50de20ce373"
+      },
+      "model_identity": "63235f6c8e9c52780b531972431a984185801834b9a9398a56fc11c59678e24b",
+      "plan_identity": "23e1aed7ad8ff040659a4bd14e6000569b1d127004b832e4c51f6a8be36b99f6",
+      "result_identity": "35ec88d0153cb4ce6552de8387da9be215c80d372220f1044613c34b28beabd1"
+    },
+    {
+      "case": "changed_h",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_h",
+      "report_sha256": "eea8287dee2a6b53d995025c996ba892841f0e2b039853249e7e681cc4e55173",
+      "input_sha256": "6f489ae2ce8bd5801ccd922272c4a402e37d570f072e780592e01cf181855048",
+      "producer_receipt_sha256": "e93d43d66209250c7064edd3172e7364d20e550b25fcc2e6aa837ce34bd926d9",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "64e97ab011770fb1cafc44c3e6fb4dae0466f9bd6e68f15bc1f64ca64b14b71d",
+        "mesh.eqmesh": "31236b187b74ec00b354b91ab9d93d8a593064ab874eda124bebc3146e307cde",
+        "plan.eqplan": "0b96e1b22df7c9bf5b7f9ec33dd83e9fe6175caec1fd972fd209bd7164af8be2",
+        "result.eqresult": "d7f85aaeb8e4b0b6cf1f15f1a477507f823fbf5f9aa7f3925f6951a993708d58",
+        "observations.json": "6f489ae2ce8bd5801ccd922272c4a402e37d570f072e780592e01cf181855048"
+      },
+      "model_identity": "d70418a03c5f76c53e774da9e31009cfcb005d21727f56ccdd38387fead9282a",
+      "plan_identity": "24ca087d946eeaab74d674753df5731151c50d3f5703a9d544a406477ebbb084",
+      "result_identity": "8baa52f3c89b8f67ff44156ed626fe24863d93e69cf345a3482af63950745c1c"
+    },
+    {
+      "case": "changed_geometry_material_cooling",
+      "directory": "/data/nk523/tmp/eqiora-scalar-convection/scientific-python-d3fd-attempt1/changed_geometry_material_cooling",
+      "report_sha256": "bd0f0096850386174a8094f680c50c68aa823b1ecba4ef6cb7f16473cc33e14d",
+      "input_sha256": "0d9ef9508a01bae18de82a2ff27756dcbf85932f1d89fd12ce7817c0a449bc85",
+      "producer_receipt_sha256": "039d13320137bfc7be02decab47aab60fb2e85d80751c00c17de5720bacaebaa",
+      "accepted": true,
+      "counts": {
+        "coefficients": 9,
+        "free": 6,
+        "observations": 6,
+        "observation_evaluations": 12
+      },
+      "artifact_hashes_verified": {
+        "model.json": "2f812782aba9675ff9e8b12576730653d7247ed120d972f051f2dada8e662ee4",
+        "mesh.eqmesh": "f0f6eb6bc4b47e1411fe5324f353febec67ae14c93bd82cc5a612d1e95588d07",
+        "plan.eqplan": "05000fefc47aae15d3cb3aed4158bfc87c1a6713a4741aafe3b7b8c85c72d9db",
+        "result.eqresult": "509ff117d526aaeac970d2732251965a384c308d9d71afc4a15c35c746cb1608",
+        "observations.json": "0d9ef9508a01bae18de82a2ff27756dcbf85932f1d89fd12ce7817c0a449bc85"
+      },
+      "model_identity": "60221adc4c652a2aa6da83881d9d82b42925860ddb429e2d224cf6fff8595523",
+      "plan_identity": "9ec44cee912d56aa702c668da48027852c20f4d614893cf08781205a53403450",
+      "result_identity": "6335e6152407c870700f0a28f7c53338958bda32433ec8bc5218ed824e95db07"
+    }
+  ],
+  "initial_public_runs": 8,
+  "scope": "public coefficients and six physical observations plus artifact replay; core full operator/private reactions remain separate",
+  "native_launch": {
+    "path": "/data/nk523/tmp/eqiora-scalar-convection/native-launch.json",
+    "sha256": "be195ca3e83840bfbe1e49edddf95fd06642a31eb4d69957c5681bdce2980c69",
+    "pid": 671007
+  },
+  "python_launch": {
+    "path": "/data/nk523/tmp/eqiora-scalar-convection/python-launch.json",
+    "sha256": "26692abba86a635d17ab8f7ac6a8938ce4a3f9e0389eedb81562d6bab2e0a4df",
+    "pid": 672358
+  }
+}

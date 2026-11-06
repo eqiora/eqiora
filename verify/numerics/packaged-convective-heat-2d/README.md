@@ -42,8 +42,12 @@ public heat-flow observations and artifact replay reach that path. No fabricated
 matrix or load is supplied to the full comparator. Physical outward heat and
 private weak reactions have opposite sign; the package does not conflate them.
 
-The result-only native and installed Python numerical checks are implemented
-and awaiting execution after core and reference integration and source/build review. The observation path is the existing general
+The initial native and installed Python campaigns passed all four cases each.
+The primary audit checked all eight reports, actual artifact and observation
+bindings, coefficient-coordinate association and unchanged reference bounds.
+The [immutable archive](evidence/2026-11-06/inventory.json) identifies the actual
+scientific producer source, binary, wheel, inputs, outputs and build history.
+Required registered-case reruns are separate from these eight initial public Runs. The observation path is the existing general
 `CommonResult::observe` / Python `result.observe` API, without a new public API
 or a private capture seam. Source checks alone do not establish numerical
 correctness. The intended numerical scope is steady affine Cartesian 2D Q1 on
@@ -69,3 +73,17 @@ functional and analytic-target bounds. Matching labels or replay values alone
 are not treated as evidence of their origin. The native test and
 [`test_convective_heat_observations.py`](../../../bindings/python/tests/test_convective_heat_observations.py)
 do not access private operators, loads or nodal weak reactions.
+
+## Repository regression
+
+The [case manifest](case.toml) selects the existing `eqiora` integration-test
+owner `standard_thermal_package`. Run it through the normal verifier:
+
+```sh
+cargo run --locked -p eqiora-verify -- run --case numerics.packaged-convective-heat-2d
+```
+
+This reruns the public lifecycle and canonical reference in fresh home-backed
+scratch and includes the existing thermal source controls and product checks.
+It does not use archived Eqiora coefficients as expected values. The installed
+Python owner remains a focused product check over the same frozen reference.

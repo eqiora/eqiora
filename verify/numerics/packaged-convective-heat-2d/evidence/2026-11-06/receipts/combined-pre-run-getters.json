@@ -1,0 +1,133 @@
+{
+  "no_pde_runs": true,
+  "cases": [
+    {
+      "case": "insulated",
+      "model_digest": "d285bb17d2d924ef02e433637818626b2f83a81632f968d94dd010b5ae546613",
+      "canonical_model_reopen": true,
+      "exact_field_reopen": true,
+      "observable_boundary_bindings": [
+        {
+          "observable_id": "6ETGNYRRQDYX9BEK1G6MW2JGGF",
+          "boundary_domain_id": "3DEA9QNXTVJG8WE7KB928ESPHT"
+        },
+        {
+          "observable_id": "6NXDN36M2AX0PHFCQCGT9B4SNJ",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "5S731MEBQXGDW7VEDS89KGYN15",
+          "boundary_domain_id": "2M6MFVEM2WPTQZRW5H5DFAGRJ4"
+        },
+        {
+          "observable_id": "3DD2ZHAG4ZW2Q0RTDFFWFV1Y0Y",
+          "boundary_domain_id": "1SYJNMC05QKQQX5H81VGG58PZD"
+        },
+        {
+          "observable_id": "3CYVZPHZTAZPNECJEDFVQCR3AR",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "556PEP7DVSY730BFNG99HKYWJY",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        }
+      ]
+    },
+    {
+      "case": "robin",
+      "model_digest": "470c3d6b06cbc0819681940b7e7247cdd6a398eb10cb753ee305017c4540347d",
+      "canonical_model_reopen": true,
+      "exact_field_reopen": true,
+      "observable_boundary_bindings": [
+        {
+          "observable_id": "6ETGNYRRQDYX9BEK1G6MW2JGGF",
+          "boundary_domain_id": "3DEA9QNXTVJG8WE7KB928ESPHT"
+        },
+        {
+          "observable_id": "6NXDN36M2AX0PHFCQCGT9B4SNJ",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "5S731MEBQXGDW7VEDS89KGYN15",
+          "boundary_domain_id": "2M6MFVEM2WPTQZRW5H5DFAGRJ4"
+        },
+        {
+          "observable_id": "3DD2ZHAG4ZW2Q0RTDFFWFV1Y0Y",
+          "boundary_domain_id": "1SYJNMC05QKQQX5H81VGG58PZD"
+        },
+        {
+          "observable_id": "3CYVZPHZTAZPNECJEDFVQCR3AR",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "556PEP7DVSY730BFNG99HKYWJY",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        }
+      ]
+    },
+    {
+      "case": "changed_h",
+      "model_digest": "7301ae5602d2b7a6df9f516e29b6e9fba1f894994579045d0f22774cda20c78e",
+      "canonical_model_reopen": true,
+      "exact_field_reopen": true,
+      "observable_boundary_bindings": [
+        {
+          "observable_id": "6ETGNYRRQDYX9BEK1G6MW2JGGF",
+          "boundary_domain_id": "3DEA9QNXTVJG8WE7KB928ESPHT"
+        },
+        {
+          "observable_id": "6NXDN36M2AX0PHFCQCGT9B4SNJ",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "5S731MEBQXGDW7VEDS89KGYN15",
+          "boundary_domain_id": "2M6MFVEM2WPTQZRW5H5DFAGRJ4"
+        },
+        {
+          "observable_id": "3DD2ZHAG4ZW2Q0RTDFFWFV1Y0Y",
+          "boundary_domain_id": "1SYJNMC05QKQQX5H81VGG58PZD"
+        },
+        {
+          "observable_id": "3CYVZPHZTAZPNECJEDFVQCR3AR",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "556PEP7DVSY730BFNG99HKYWJY",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        }
+      ]
+    },
+    {
+      "case": "changed_geometry_material_cooling",
+      "model_digest": "13257aaae494f6393dd76102fc2d50a8e08abfb0a112c244955da3ccfb12aa38",
+      "canonical_model_reopen": true,
+      "exact_field_reopen": true,
+      "observable_boundary_bindings": [
+        {
+          "observable_id": "6ETGNYRRQDYX9BEK1G6MW2JGGF",
+          "boundary_domain_id": "3DEA9QNXTVJG8WE7KB928ESPHT"
+        },
+        {
+          "observable_id": "6NXDN36M2AX0PHFCQCGT9B4SNJ",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "5S731MEBQXGDW7VEDS89KGYN15",
+          "boundary_domain_id": "2M6MFVEM2WPTQZRW5H5DFAGRJ4"
+        },
+        {
+          "observable_id": "3DD2ZHAG4ZW2Q0RTDFFWFV1Y0Y",
+          "boundary_domain_id": "1SYJNMC05QKQQX5H81VGG58PZD"
+        },
+        {
+          "observable_id": "3CYVZPHZTAZPNECJEDFVQCR3AR",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        },
+        {
+          "observable_id": "556PEP7DVSY730BFNG99HKYWJY",
+          "boundary_domain_id": "61HNN4B58PF4742JVCEXR6KAF5"
+        }
+      ]
+    }
+  ]
+}

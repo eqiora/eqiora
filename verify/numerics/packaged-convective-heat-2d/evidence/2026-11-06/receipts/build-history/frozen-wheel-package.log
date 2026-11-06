@@ -1,0 +1,13 @@
+🍹 Building a mixed python/rust project
+🐍 Found CPython 3.13 at /data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python
+🔗 Found pyo3 bindings with abi3-py3.11 support
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.30s
+🔗 External shared libraries to be copied into the wheel:
+  /data/nk523/tmp/eqiora-scalar-convection/target/maturin/lib_eqiora.so requires:
+    libsundials_core-b797f02a.so.7 => not found
+    libsundials_sunlinsoldense-89216335.so.5 => not found
+    libsundials_nvecserial-d4fe1a6e.so.7 => not found
+    libsundials_ida-37c028a5.so.7 => not found
+    libsundials_sunmatrixdense-ea13cc70.so.5 => not found
+💥 maturin failed
+  Caused by: Cannot repair wheel, because required library libsundials_core-b797f02a.so.7 could not be located.

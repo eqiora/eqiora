@@ -1,0 +1,121 @@
+public component Poisson2d(
+  support body: volume(ambient_dimension = 2),
+  variable potential: 1 on body in h1,
+  parameter coefficient: 1 = 1,
+  expression source: 1 / m ^ 2 on body
+) {
+  relation balance on body {
+    -div(coefficient * grad(potential)) - source = 0;
+  }
+}
+
+public component Laplace2d(
+  support body: volume(ambient_dimension = 2),
+  variable potential: 1 on body in h1,
+  parameter coefficient: 1 = 1
+) {
+  relation balance on body {
+    -div(coefficient * grad(potential)) = 0;
+  }
+}
+
+public component FixedValue2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable potential: 1 on body in h1,
+  expression value: 1 on face
+) {
+  relation prescribed_value on face {
+    trace(potential) - value = 0;
+  }
+}
+
+public component NormalFlux2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable potential: 1 on body in smooth,
+  parameter coefficient: 1 = 1,
+  expression flux: 1 / m on face
+) {
+  relation prescribed_flux on face {
+    normal(coefficient * grad(potential)) - flux = 0;
+  }
+}
+
+public component SteadyHeat2d(
+  support body: volume(ambient_dimension = 2),
+  variable temperature: K on body in h1,
+  parameter conductivity: W / (m * K),
+  expression heating: W / m ^ 3 on body
+) {
+  law heat_balance on body {
+    flux -conductivity * grad(temperature);
+    source heating;
+  }
+}
+
+public component TransientHeat2d(
+  support body: volume(ambient_dimension = 2),
+  state temperature: K on body in h1,
+  parameter conductivity: W / (m * K),
+  parameter capacity: J / (m ^ 3 * K),
+  expression heating: W / m ^ 3 on body
+) {
+  law heat_balance on body {
+    storage capacity * temperature;
+    flux -conductivity * grad(temperature);
+    source heating;
+  }
+}
+
+public component FixedTemperature2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable temperature: K on body in h1,
+  expression value: K on face
+) {
+  relation prescribed_temperature on face {
+    trace(temperature) - value = 0;
+  }
+}
+
+public component OutwardHeatFlux2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable temperature: K on body in smooth,
+  parameter conductivity: W / (m * K),
+  expression flux: W / m ^ 2 on face
+) {
+  relation prescribed_heat_flux on face {
+    normal(conductivity * grad(temperature)) + flux = 0;
+  }
+}
+
+public component ConvectiveHeatTransfer2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable temperature: K on body in smooth,
+  parameter conductivity: W / (m * K),
+  parameter coefficient: W / (m ^ 2 * K),
+  expression ambient: K on face
+) {
+  relation convective_heat_transfer on face {
+    normal(conductivity * grad(temperature)) + coefficient * trace(temperature)
+      = coefficient * ambient;
+  }
+}
+
+public component TransientAdvectionDiffusion2d(
+  support body: volume(ambient_dimension = 2),
+  state scalar: 1 on body in h1,
+  parameter diffusivity: m ^ 2 / s,
+  expression velocity_x: m / s on body,
+  expression velocity_y: m / s on body,
+  expression source: 1 / s on body
+) {
+  law scalar_balance on body {
+    storage scalar;
+    flux scalar * (velocity_x * grad(coordinate(0)) + velocity_y * grad(coordinate(1))) - diffusivity * grad(scalar);
+    source source;
+  }
+}

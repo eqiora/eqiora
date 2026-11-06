@@ -1,5 +1,5 @@
 id = "numerics.packaged-convective-heat-2d"
-status = "specified"
+status = "implemented"
 scope = "bundled-fixed-si-steady-convective-heat-cartesian-2d-serial-reference-q1"
 reference_kind = "canonical-exact-rational-robin-reference"
 
@@ -7,6 +7,8 @@ capabilities = [
   "ordinary-source-bundled-thermal-import",
   "dimension-checked-convective-boundary-inputs",
   "exact-parent-boundary-bindings",
+  "public-physical-boundary-observations",
+  "canonical-plan-and-result-replay",
 ]
 
 [problem]
@@ -38,3 +40,4 @@ performance = false
 [evidence]
 package = "eqiora"
 test = "standard_thermal_package"
+table = "evidence/2026-11-06/inventory.json"

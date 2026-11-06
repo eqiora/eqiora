@@ -1,0 +1,276 @@
+{
+  "schema": 1,
+  "created_utc": "2026-11-06T11:57:02.863730+00:00",
+  "status": "combined-build-and-no-pde-controls-pass-awaiting-scientific-run-review",
+  "source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "producer_source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "wheel_build_source_head": "d3fd0424b7eda8df921a365ae2f4e179c989b7c7",
+  "tracked_and_untracked_tree_clean": true,
+  "approved_core_commit": "10a2bffe23a05497fdd2628c892fd1a93dc65084",
+  "approved_core_is_ancestor": true,
+  "native_test_executable": "/data/nk523/tmp/eqiora-scalar-convection/target/debug/deps/standard_thermal_package-ff1beb6dda49cefe",
+  "native_test_executable_sha256": "d5f1f1d3e09428f83b1af942512dea6bd8506aef70c39f6636cf62c1d5879584",
+  "wheel_and_installed_identity": {
+    "python": "3.13.14 (main, Aug  5 2026, 15:44:26) [Clang 22.1.3 ]",
+    "python_executable": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python",
+    "eqiora_version": "0.1.5",
+    "package_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/__init__.py",
+    "native_extension_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+    "native_extension_sha256": "41252b8404c826756b7891ce52d4e423403fb6ad2cf7a16fdf5ac7a060689256",
+    "wheel_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheels/eqiora-0.1.5-cp311-abi3-manylinux_2_39_x86_64.whl",
+    "wheel_sha256": "1c7fd883e0240013b375d8b94782e8ae8dbcdc59ea31240237a265b496886f28",
+    "wheel_native_extension_member": "eqiora/_eqiora.abi3.so",
+    "installed_native_extension_matches_wheel": true,
+    "source_shadowing_rejected": true,
+    "native_dependencies": {
+      "eqiora/_eqiora.abi3.so": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/_eqiora.abi3.so",
+        "sha256": "41252b8404c826756b7891ce52d4e423403fb6ad2cf7a16fdf5ac7a060689256",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_core-b797f02a.so.7": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_core-b797f02a.so.7",
+        "sha256": "5b6920e5f28db68d08d23765f13756b6f7ee8d567af7c2ff38d1066272c76c49",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_ida-37c028a5.so.7": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_ida-37c028a5.so.7",
+        "sha256": "12b94ac4ec6ba8f395b7681d4b5b0d4051e8fdca4e2029fb32ada640a6d3bc16",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_nvecserial-d4fe1a6e.so.7": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_nvecserial-d4fe1a6e.so.7",
+        "sha256": "0f4e3733c35f047207dad22c6ed1be16e4f79b35e46aced580733125f4d7ac77",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_sunlinsoldense-89216335.so.5": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_sunlinsoldense-89216335.so.5",
+        "sha256": "63ad4138b6c54e0c109de8d6a98a15f7219b7282b4e664c1dcbfc7a1f4c606c6",
+        "matches_wheel": true
+      },
+      "eqiora.libs/libsundials_sunmatrixdense-ea13cc70.so.5": {
+        "installed_path": "/data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora.libs/libsundials_sunmatrixdense-ea13cc70.so.5",
+        "sha256": "a483e7cab3eca899f1cce6fae13097b0470c3b7695ec424aeedfb2194f4e1bb7",
+        "matches_wheel": true
+      }
+    },
+    "ldd": "\tlinux-vdso.so.1 (0x00007e6bad038000)\n\tlibsundials_core-b797f02a.so.7 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_core-b797f02a.so.7 (0x00007e6ba2fc6000)\n\tlibsundials_nvecserial-d4fe1a6e.so.7 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_nvecserial-d4fe1a6e.so.7 (0x00007e6ba2fb7000)\n\tlibsundials_sunlinsoldense-89216335.so.5 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_sunlinsoldense-89216335.so.5 (0x00007e6ba2faf000)\n\tlibsundials_sunmatrixdense-ea13cc70.so.5 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_sunmatrixdense-ea13cc70.so.5 (0x00007e6ba2fa7000)\n\tlibsundials_ida-37c028a5.so.7 => /data/nk523/tmp/eqiora-scalar-convection/combined-venv/lib/python3.13/site-packages/eqiora/../eqiora.libs/libsundials_ida-37c028a5.so.7 (0x00007e6ba2f64000)\n\tlibgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007e6ba2f28000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007e6ba2e3f000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007e6ba2c00000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007e6bad03a000)\n",
+    "public_getters": {
+      "Result.observe": true,
+      "Result.to_bytes": true,
+      "Result.model_digest": true,
+      "Plan.identity": true,
+      "Model.digest": true,
+      "Model.observable": true
+    }
+  },
+  "toolchain": {
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-unknown-linux-gnu\nrelease: 1.98.0\nLLVM version: 22.1.8",
+    "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+    "maturin": "maturin 1.15.0",
+    "python": "Python 3.13.14",
+    "pytest": "pytest 9.1.1",
+    "uv": "uv 0.13.7 (x86_64-unknown-linux-gnu)",
+    "source_head": "4c39bc407e09b45496ed0109ef5c97389b6524cc",
+    "tracked_clean": true,
+    "sources_sha256": {
+      "crates/eqiora/tests/standard_thermal_package/robin/observations.rs": "d71d0a04e94dc45dea2613ea02963166cac6a4304c23d1b0f3e496063343536f",
+      "bindings/python/tests/test_convective_heat_observations.py": "d71dd34a383ad4c9beed439193bf6c11c64b9f8361b3d076c196dc49c98da00b",
+      "verify/numerics/cartesian-robin-q1/reference/robin.py": "200cc1ff5de8327d438506a75e4af59e03b188e730d4fb2b2b653ea06caa507d",
+      "Cargo.lock": "356670ea5adcf9bd417ca69b64e6c78909215b298689cb6ab9a28d07b1c5697d",
+      "examples/heated-body/eqiora.lock": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39"
+    }
+  },
+  "toolchain_initial_snapshot_source_note": "snapshot made at 4c39 before producer-only deferred-ID/support-alias fixes; final native and wheel outputs are rebuilt from source_head above",
+  "patchelf": "patchelf 0.19.3",
+  "build_environment": {
+    "TMPDIR": "/data/nk523/tmp/eqiora-scalar-convection/scratch",
+    "CARGO_TARGET_DIR": "/data/nk523/tmp/eqiora-scalar-convection/target",
+    "CARGO_BUILD_JOBS": "2",
+    "cpu_affinity": [
+      3,
+      18
+    ],
+    "profile": "dev",
+    "maturin": "1.15.0",
+    "pytest": "9.1.1",
+    "LIBCLANG_PATH": "/usr/lib/llvm-18/lib",
+    "BINDGEN_EXTRA_CLANG_ARGS": "-isystem /usr/lib/gcc/x86_64-linux-gnu/13/include",
+    "SUNDIALS_INCLUDE_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/include",
+    "SUNDIALS_LIBRARY_DIR": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+    "LD_LIBRARY_PATH_during_build": "/data/nk523/.cache/eqiora/ida-owned-install/lib",
+    "LD_LIBRARY_PATH_during_installed_controls": "unset; repaired wheel dependencies resolved from installed wheel"
+  },
+  "no_pde_controls": {
+    "native_compile_only": "pass",
+    "native_source_and_hex_controls": [
+      {
+        "test": "robin::observations::canonical_binary64_hex_covers_zero_subnormal_and_exponent_boundaries",
+        "exit_code": 0
+      },
+      {
+        "test": "robin::imported_convection_compiles_with_exact_caller_supports_and_required_inputs",
+        "exit_code": 0
+      },
+      {
+        "test": "robin::convection_rejects_wrong_units_regularity_parent_and_missing_inputs",
+        "exit_code": 0
+      },
+      {
+        "test": "robin::convection_rejects_boundary_from_another_parent",
+        "exit_code": 0
+      }
+    ],
+    "targeted_clippy": "pass",
+    "format": "pass",
+    "documentation_contract": "pass",
+    "oracle_sha256": "pass",
+    "oracle_observation_pure_tests": 7,
+    "python_collection": 21,
+    "python_compile_and_moved_offline_cases": 4,
+    "python_model_field_observable_domain_reopen_cases": 4,
+    "installed_shared_libraries_match_wheel": 6
+  },
+  "no_imported_scientific_runs": true,
+  "source_sha256": {
+    "Cargo.lock": "356670ea5adcf9bd417ca69b64e6c78909215b298689cb6ab9a28d07b1c5697d",
+    "pyproject.toml": "cf57d18890fc7ec3c7953d7446c9f1b44ad25edad551906db996869743e00c48",
+    "crates/eqiora/tests/standard_thermal_package.rs": "eadf3eab51448cd19838b06ac40b584055160b118e9c90f1e9533e43a5b712ab",
+    "crates/eqiora/tests/standard_thermal_package/robin.rs": "4c9ccab43c5d4417a9188fa0705867513e99591611a78d064c84519c0f3eaab2",
+    "crates/eqiora/tests/standard_thermal_package/robin/observations.rs": "78983b1bceaab39292d46d5507519a49199dd14fdfb5b4e0fa4872be87ef105d",
+    "bindings/python/tests/test_convective_heat_observations.py": "f4d6056845d0f894f7e23bb443ebe8f9d436bedc2cb01e240985ea8b6d2add04",
+    "examples/heated-body/src/main.eqi": "d93d4600fcdad46b1a3003a247321edd330aa1463f3399a0a964ffb4b97cc2f2",
+    "examples/heated-body/handwritten.eqi": "05f2b7733a2e4ee1218545fa1c934d71b8a3aaf696d02cc5e3c1696788064607",
+    "examples/heated-body/run.py": "961c00b2f8ac860410f162a340bbcabd2543975eae110a65bbc040d39d7bd043",
+    "examples/heated-body/eqiora.lock": "b79dcb975da1c2767e1a23085846f672f1d1e094528da2f40dd41a76c4638d39",
+    "crates/eqiora-api/packages/Eqiora.Scalar/package.json": "2c5a1cf702c80b79c8fa39612bd3d6e9486d2e7379288f91720509766ef2b4a5",
+    "crates/eqiora-api/packages/Eqiora.Scalar/src/scalar.eqi": "c546b2dcde01f54f1d4f5570c1e6b38b88ab5af27d75ef08c1dfed04f26c9393",
+    "crates/eqiora-api/packages/Eqiora.Scalar/README.md": "83585e371cbd521abbdc86afa6fef182b66f40f9fdbbca426df3656081efd83d",
+    "verify/numerics/cartesian-robin-q1/reference/robin.py": "200cc1ff5de8327d438506a75e4af59e03b188e730d4fb2b2b653ea06caa507d"
+  },
+  "logs": {
+    "combined-native-build.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-native-build.log",
+      "sha256": "138b6832b952740236959f542334d04a8a6ecf1d47016ec6316b09399dcdaef1"
+    },
+    "frozen-native-build.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-native-build.log",
+      "sha256": "48f3151c02db6379be98632762b52a5eb578439ac76b765d2e59ae5b0874be03"
+    },
+    "frozen-boundary-source-check.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-boundary-source-check.log",
+      "sha256": "8f666e7eaaae273ebfd443046e104b21cea8dce44c0b1567c7f40167199b006e"
+    },
+    "frozen-native-no-pde-controls.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-native-no-pde-controls.log",
+      "sha256": "95ab46505a0f18de492320c80dc17f97b8735ca4b6705347e53f8ede6e868ad3"
+    },
+    "final-source-clippy.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/final-source-clippy.log",
+      "sha256": "e2adf0a852225e73c80a9c9b11f115c92a9e7c70e3a293483ab50a1642efe94c"
+    },
+    "combined-format.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-format.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "combined-final-docs.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-final-docs.log",
+      "sha256": "6fccc2e71abac96060c54806499df20580b671df6f4d566cc0be8d973313462a"
+    },
+    "combined-oracle-pure.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-oracle-pure.log",
+      "sha256": "ac4f85c1e799f966c39b62761f1a2123366d98604199fde7d204545a16469352"
+    },
+    "combined-wheel-build.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-build.log",
+      "sha256": "7529b3da30b045af6b2658c2baf238a98edf1f3f6083c18a3f6a926e840ae2b7"
+    },
+    "combined-wheel-build-attempt2.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-build-attempt2.log",
+      "sha256": "54f71ff2d9d57e1d78c4680a41d2c48a90ff4c98176535d2027d17ffe521436c"
+    },
+    "combined-wheel-build-known-ida.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-build-known-ida.log",
+      "sha256": "aa86764a45bacc80c4cbeb5711642a80d9146f9b0e51f0c68b293389ff26558e"
+    },
+    "combined-wheel-package-final.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-wheel-package-final.log",
+      "sha256": "e70382c359a78f2f6c4d5a9e080786bf8265e0212fda63b071f6b2aaa36e1830"
+    },
+    "frozen-wheel-package.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-wheel-package.log",
+      "sha256": "1ce2e20b17053ce97e0d6156344173b823816307807c4ea6e2759f7d9670811f"
+    },
+    "python-targeted-clean.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/python-targeted-clean.log",
+      "sha256": "0dcb0eae096f53d85739c8e5151fa02c66355c854ca120ef4166e69f7c483c11"
+    },
+    "frozen-wheel-fresh-link.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-wheel-fresh-link.log",
+      "sha256": "47e90ee54870ab1d91b3de43335637e423522949e7bee8c497d8ca5b9b3b4932"
+    },
+    "frozen-wheel-install.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-wheel-install.log",
+      "sha256": "52bebd6ac747b6e141ad5c1d8de0f79cc9ff2284bf15a5f1422d3e78df4b8b88"
+    },
+    "frozen-installed-inspection.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-installed-inspection.log",
+      "sha256": "40fdf88084d580f74b2154d5fc9fcd89b3a4bbc2af02e92717e4b4193b06da47"
+    },
+    "frozen-pre-run-getters.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-pre-run-getters.log",
+      "sha256": "8d7905a19034977089f56a97ec275ec920deca5b3b8d2d45ead2e6b08001c467"
+    },
+    "frozen-python-collection.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-python-collection.log",
+      "sha256": "b79d60b72093c2bcd2285e766386d1de052679efa5bfc515feb0ea9238ebbad7"
+    },
+    "frozen-python-compile-offline.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/frozen-python-compile-offline.log",
+      "sha256": "471aee96a9693db9ae0388b987e983e7da6ebec43625fc185934c714babb50b5"
+    },
+    "combined-pre-run-getters.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-pre-run-getters.log",
+      "sha256": "f37df6f9adc4368ca7fa5e5ad8cee97e02742748f2bdef5a4dcd96320cbf027d"
+    },
+    "combined-pre-run-getters-corrected.log": {
+      "path": "/data/nk523/tmp/eqiora-scalar-convection/combined-pre-run-getters-corrected.log",
+      "sha256": "4fb396247635145f44f360e9b6dbdb80423e24b02fe93b22770ff746f6828f9d"
+    }
+  },
+  "preparation_attempt_history": [
+    {
+      "log": "combined-wheel-build.log",
+      "outcome": "failed: missing stddef.h before native build completion"
+    },
+    {
+      "log": "combined-wheel-build-attempt2.log",
+      "outcome": "failed: older bundled Sundials correctly rejected by 7.8.0 guard"
+    },
+    {
+      "log": "combined-wheel-build-known-ida.log",
+      "outcome": "native build passed; packaging failed: patchelf missing"
+    },
+    {
+      "log": "combined-wheel-package-final.log",
+      "outcome": "4c39 wheel build and installed controls passed; preserved in wheels-4c39"
+    },
+    {
+      "log": "combined-pre-run-getters.log",
+      "outcome": "no-run probe failed: reopened deferred Model requires exact Field ID"
+    },
+    {
+      "log": "combined-pre-run-getters-corrected.log",
+      "outcome": "no-run probe failed: bound caller Domain uses unprefixed support alias"
+    },
+    {
+      "log": "frozen-wheel-package.log",
+      "outcome": "cached repackage failed: prior repair mutated target extension SONAMEs; failed wheel retained"
+    },
+    {
+      "log": "frozen-wheel-fresh-link.log",
+      "outcome": "passed after targeted clean of private eqiora-python outputs and fresh relink"
+    }
+  ],
+  "scope": "local development build and source/import/archive validation only; no release, performance, GPU, or imported numerical correctness claim"
+}

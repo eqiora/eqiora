@@ -1,0 +1,548 @@
+🍹 Building a mixed python/rust project
+🐍 Found CPython 3.13 at /data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python
+🔗 Found pyo3 bindings with abi3-py3.11 support
+    Blocking waiting for file lock on build directory
+   Compiling num-traits v0.2.19
+   Compiling rand_core v0.6.4
+   Compiling rand v0.8.7
+   Compiling syn v2.0.119
+   Compiling num-complex v0.4.6
+   Compiling num-integer v0.1.46
+   Compiling num-bigint v0.4.8
+   Compiling eqiora-core v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-core)
+   Compiling num-rational v0.4.2
+   Compiling find-msvc-tools v0.1.9
+   Compiling shlex v2.0.1
+   Compiling cc v1.2.67
+   Compiling aho-corasick v1.1.4
+   Compiling regex-syntax v0.8.11
+   Compiling cmake v0.1.58
+   Compiling libloading v0.8.9
+   Compiling winnow v1.0.4
+   Compiling regex-automata v0.4.16
+   Compiling pulp v0.22.3
+   Compiling regex v1.13.1
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling eqiora-schema v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-schema)
+   Compiling matrixmultiply v0.3.11
+   Compiling getrandom v0.3.4
+   Compiling ucd-trie v0.1.7
+   Compiling target-lexicon v0.13.5
+   Compiling zerocopy v0.8.54
+   Compiling gemm-common v0.19.0
+   Compiling pest v2.8.7
+   Compiling hashbrown v0.17.1
+   Compiling equivalent v1.0.2
+   Compiling rawpointer v0.2.1
+   Compiling eqiora-meshing v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-meshing)
+   Compiling pest_meta v2.8.7
+   Compiling eqiora-solver v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-solver)
+   Compiling hdf5-metno-src v0.10.2
+   Compiling ppv-lite86 v0.2.21
+   Compiling pyo3-build-config v0.29.3
+   Compiling pest_generator v2.8.7
+   Compiling rand_core v0.9.5
+   Compiling equator-macro v0.4.2
+   Compiling crossbeam-channel v0.5.17
+   Compiling crossbeam-queue v0.3.13
+   Compiling pkg-config v0.3.33
+   Compiling glob v0.3.3
+   Compiling clang-sys v1.8.1
+   Compiling private-gemm-x86 v0.1.22
+   Compiling hdf5-metno-sys v0.12.4
+   Compiling crossbeam v0.8.4
+   Compiling equator v0.4.2
+   Compiling rand_chacha v0.9.0
+   Compiling pest_derive v2.8.7
+   Compiling equator-macro v0.2.1
+   Compiling atomic-wait v1.1.0
+   Compiling rustix v0.38.44
+   Compiling parking_lot_core v0.9.12
+   Compiling prettyplease v0.2.37
+   Compiling log v0.4.33
+   Compiling libc v0.2.186
+   Compiling spindle v0.2.6
+   Compiling equator v0.2.2
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling py_literal v0.4.0
+   Compiling rand v0.9.5
+   Compiling nano-gemm-c32 v0.2.1
+   Compiling nano-gemm-c64 v0.2.1
+   Compiling eqiora-ir v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-ir)
+   Compiling gemm-c64 v0.19.0
+   Compiling gemm-f64 v0.19.0
+   Compiling gemm-f32 v0.19.0
+   Compiling gemm-c32 v0.19.0
+   Compiling qd v0.8.0
+   Compiling eqiora-time v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-time)
+   Compiling safe_arch v1.0.0
+   Compiling linux-raw-sys v0.4.15
+   Compiling scopeguard v1.2.0
+   Compiling lazy_static v1.5.0
+   Compiling smallvec v1.15.2
+   Compiling byteorder v1.5.0
+   Compiling minimal-lexical v0.2.1
+   Compiling nom v7.1.3
+   Compiling npyz v0.8.4
+   Compiling lock_api v0.4.14
+   Compiling faer-traits v0.24.0
+   Compiling wide v1.5.0
+   Compiling gemm v0.19.0
+   Compiling nano-gemm v0.2.2
+   Compiling rand_distr v0.5.1
+   Compiling eqiora-build v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-build)
+   Compiling pyo3-ffi v0.29.3
+   Compiling eqiora-distributed v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-distributed)
+   Compiling eqiora-geometry v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-geometry)
+   Compiling indexmap v2.14.0
+   Compiling eqiora-graph v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-graph)
+   Compiling approx v0.5.1
+   Compiling thiserror v2.0.18
+   Compiling bindgen v0.68.1
+   Compiling home v0.5.12
+   Compiling either v1.16.0
+   Compiling which v4.4.2
+   Compiling simba v0.10.0
+   Compiling toml_edit v0.25.13+spec-1.1.0
+   Compiling faer v0.24.4
+   Compiling parking_lot v0.12.5
+   Compiling cexpr v0.6.0
+   Compiling eqiora-realization v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-realization)
+   Compiling thiserror-impl v2.0.18
+   Compiling nalgebra-macros v0.3.0
+   Compiling diffsol-la v0.1.1
+   Compiling shlex v1.3.0
+   Compiling peeking_take_while v0.1.2
+   Compiling rustc-hash v1.1.0
+   Compiling hdf5-metno-types v0.11.1
+   Compiling lazycell v1.3.0
+   Compiling nalgebra v0.35.0
+   Compiling proc-macro-crate v3.5.0
+   Compiling eqiora-sem v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-sem)
+   Compiling pyo3 v0.29.3
+   Compiling ndarray v0.17.2
+   Compiling eqiora-device v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-device)
+   Compiling ascii v1.1.0
+   Compiling hdf5-metno v0.15.1
+   Compiling foldhash v0.1.5
+   Compiling hashbrown v0.15.5
+   Compiling eqiora-execution v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-execution)
+   Compiling hdf5-metno-derive v0.10.1
+   Compiling sundials-sys v0.6.2
+   Compiling eqiora-assembly v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-assembly)
+   Compiling eqiora-lang v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-lang)
+   Compiling num-bigint v0.5.1
+   Compiling pastey v0.2.3
+   Compiling diffsol v0.16.2
+   Compiling fixedbitset v0.5.7
+   Compiling petgraph v0.8.3
+   Compiling pyo3-macros-backend v0.29.3
+   Compiling eqiora-compiler v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-compiler)
+   Compiling eqiora-spatial-distribution v0.1.5 (/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-spatial-distribution)
+error: failed to run custom build command for `sundials-sys v0.6.2`
+
+Caused by:
+  process didn't exit successfully: `/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-d95687caae55fa24/build-script-build` (exit status: 101)
+  --- stdout
+  CMAKE_TOOLCHAIN_FILE_x86_64-unknown-linux-gnu = None
+  CMAKE_TOOLCHAIN_FILE_x86_64_unknown_linux_gnu = None
+  HOST_CMAKE_TOOLCHAIN_FILE = None
+  CMAKE_TOOLCHAIN_FILE = None
+  CMAKE_GENERATOR_x86_64-unknown-linux-gnu = None
+  CMAKE_GENERATOR_x86_64_unknown_linux_gnu = None
+  HOST_CMAKE_GENERATOR = None
+  CMAKE_GENERATOR = None
+  CMAKE_PREFIX_PATH_x86_64-unknown-linux-gnu = None
+  CMAKE_PREFIX_PATH_x86_64_unknown_linux_gnu = None
+  HOST_CMAKE_PREFIX_PATH = None
+  CMAKE_PREFIX_PATH = None
+  CMAKE_x86_64-unknown-linux-gnu = None
+  CMAKE_x86_64_unknown_linux_gnu = None
+  HOST_CMAKE = None
+  CMAKE = None
+  -- The C compiler identification is GNU 13.3.0
+  -- Detecting C compiler ABI info
+  -- Detecting C compiler ABI info - done
+  -- Check for working C compiler: /usr/bin/cc - skipped
+  -- Detecting C compile features
+  -- Detecting C compile features - done
+  -- SUNDIALS_GIT_VERSION: 
+  -- Building SUNDIALS in 'Debug' mode.
+  -- SUNDIALS error checking enabled
+  -- Looking for sys/types.h
+  -- Looking for sys/types.h - found
+  -- Looking for stdint.h
+  -- Looking for stdint.h - found
+  -- Looking for stddef.h
+  -- Looking for stddef.h - found
+  -- Check size of int64_t
+  -- Check size of int64_t - done
+  -- Using int64_t for indices
+  -- C standard set to 99
+  -- C extensions set to ON
+  -- Performing Test SUNDIALS_C_COMPILER_HAS_BUILTIN_EXPECT
+  -- Performing Test SUNDIALS_C_COMPILER_HAS_BUILTIN_EXPECT - Success
+  -- Performing Test SUNDIALS_C_COMPILER_HAS_ATTRIBUTE_ASSUME
+  -- Performing Test SUNDIALS_C_COMPILER_HAS_ATTRIBUTE_ASSUME - Success
+  -- Performing Test SUNDIALS_C_COMPILER_HAS_ATTRIBUTE_UNUSED
+  -- Performing Test SUNDIALS_C_COMPILER_HAS_ATTRIBUTE_UNUSED - Success
+  -- Looking for POSIX timers... found
+  -- Performing Test COMPILER_HAS_DEPRECATED_MSG
+  -- Performing Test COMPILER_HAS_DEPRECATED_MSG - Success
+  -- Appending C DEBUG flags
+  -- Performing Test COMPILER_HAS_HIDDEN_VISIBILITY
+  -- Performing Test COMPILER_HAS_HIDDEN_VISIBILITY - Success
+  -- Performing Test COMPILER_HAS_HIDDEN_INLINE_VISIBILITY
+  -- Performing Test COMPILER_HAS_HIDDEN_INLINE_VISIBILITY - Success
+  -- Performing Test COMPILER_HAS_DEPRECATED_ATTR
+  -- Performing Test COMPILER_HAS_DEPRECATED_ATTR - Success
+  -- Added NVECTOR_SERIAL module
+  -- Added NVECTOR_MANYVECTOR module
+  -- Added SUNMATRIX_BAND module
+  -- Added SUNMATRIX_DENSE module
+  -- Added SUNMATRIX_SPARSE module
+  -- Added SUNLINSOL_BAND module
+  -- Added SUNLINSOL_DENSE module
+  -- Added SUNLINSOL_PCG module
+  -- Added SUNLINSOL_SPBCGS module
+  -- Added SUNLINSOL_SPFGMR module
+  -- Added SUNLINSOL_SPGMR module
+  -- Added SUNLINSOL_SPTFQMR module
+  -- Added SUNNONLINSOL_NEWTON module
+  -- Added SUNNONLINSOL_FIXEDPOINT module
+  -- Added IDA module
+  -- Configuring done (1.1s)
+  -- Generating done (0.1s)
+  -- Build files have been written to: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/build
+  [  1%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_adaptcontroller.c.o
+  [  3%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_band.c.o
+  [  5%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_context.c.o
+  [  6%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_dense.c.o
+  [  8%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_direct.c.o
+  [ 10%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_errors.c.o
+  [ 12%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_futils.c.o
+  [ 13%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_hashmap.c.o
+  [ 15%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_iterative.c.o
+  [ 17%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_linearsolver.c.o
+  [ 18%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_logger.c.o
+  [ 20%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_math.c.o
+  [ 22%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_matrix.c.o
+  [ 24%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_memory.c.o
+  [ 25%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_nonlinearsolver.c.o
+  [ 27%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_nvector_senswrapper.c.o
+  [ 29%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_nvector.c.o
+  [ 31%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_profiler.c.o
+  [ 32%] Building C object src/sundials/CMakeFiles/sundials_core_obj_shared.dir/sundials_version.c.o
+  [ 32%] Built target sundials_core_obj_shared
+  [ 34%] Linking C shared library libsundials_core.so
+  [ 34%] Built target sundials_core_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_nvecserial_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_nvecmanyvector_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunmatrixband_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunmatrixdense_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunmatrixsparse_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunlinsolpcg_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunlinsolspbcgs_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunlinsolspfgmr_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunlinsolspgmr_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunlinsolsptfqmr_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunnonlinsolnewton_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunnonlinsolfixedpoint_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunmemsys_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunadaptcontrollerimexgus_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_sunadaptcontrollersoderlind_obj_shared
+  [ 34%] Built target fake_to_force_build_order_sundials_ida_obj_shared
+  [ 36%] Building C object src/nvector/serial/CMakeFiles/sundials_nvecserial_obj_shared.dir/nvector_serial.c.o
+  [ 36%] Built target sundials_nvecserial_obj_shared
+  [ 37%] Building C object src/nvector/manyvector/CMakeFiles/sundials_nvecmanyvector_obj_shared.dir/nvector_manyvector.c.o
+  [ 37%] Built target sundials_nvecmanyvector_obj_shared
+  [ 39%] Building C object src/sunmatrix/band/CMakeFiles/sundials_sunmatrixband_obj_shared.dir/sunmatrix_band.c.o
+  [ 39%] Built target sundials_sunmatrixband_obj_shared
+  [ 41%] Building C object src/sunmatrix/dense/CMakeFiles/sundials_sunmatrixdense_obj_shared.dir/sunmatrix_dense.c.o
+  [ 41%] Built target sundials_sunmatrixdense_obj_shared
+  [ 43%] Building C object src/sunmatrix/sparse/CMakeFiles/sundials_sunmatrixsparse_obj_shared.dir/sunmatrix_sparse.c.o
+  [ 43%] Built target sundials_sunmatrixsparse_obj_shared
+  [ 44%] Building C object src/sunlinsol/pcg/CMakeFiles/sundials_sunlinsolpcg_obj_shared.dir/sunlinsol_pcg.c.o
+  [ 44%] Built target sundials_sunlinsolpcg_obj_shared
+  [ 46%] Building C object src/sunlinsol/spbcgs/CMakeFiles/sundials_sunlinsolspbcgs_obj_shared.dir/sunlinsol_spbcgs.c.o
+  [ 46%] Built target sundials_sunlinsolspbcgs_obj_shared
+  [ 48%] Building C object src/sunlinsol/spfgmr/CMakeFiles/sundials_sunlinsolspfgmr_obj_shared.dir/sunlinsol_spfgmr.c.o
+  [ 48%] Built target sundials_sunlinsolspfgmr_obj_shared
+  [ 50%] Building C object src/sunlinsol/spgmr/CMakeFiles/sundials_sunlinsolspgmr_obj_shared.dir/sunlinsol_spgmr.c.o
+  [ 50%] Built target sundials_sunlinsolspgmr_obj_shared
+  [ 51%] Building C object src/sunlinsol/sptfqmr/CMakeFiles/sundials_sunlinsolsptfqmr_obj_shared.dir/sunlinsol_sptfqmr.c.o
+  [ 51%] Built target sundials_sunlinsolsptfqmr_obj_shared
+  [ 53%] Building C object src/sunnonlinsol/newton/CMakeFiles/sundials_sunnonlinsolnewton_obj_shared.dir/sunnonlinsol_newton.c.o
+  [ 53%] Built target sundials_sunnonlinsolnewton_obj_shared
+  [ 55%] Building C object src/sunnonlinsol/fixedpoint/CMakeFiles/sundials_sunnonlinsolfixedpoint_obj_shared.dir/sunnonlinsol_fixedpoint.c.o
+  [ 55%] Built target sundials_sunnonlinsolfixedpoint_obj_shared
+  [ 56%] Building C object src/sunmemory/system/CMakeFiles/sundials_sunmemsys_obj_shared.dir/sundials_system_memory.c.o
+  [ 56%] Built target sundials_sunmemsys_obj_shared
+  [ 58%] Building C object src/sunadaptcontroller/imexgus/CMakeFiles/sundials_sunadaptcontrollerimexgus_obj_shared.dir/sunadaptcontroller_imexgus.c.o
+  [ 58%] Built target sundials_sunadaptcontrollerimexgus_obj_shared
+  [ 60%] Building C object src/sunadaptcontroller/soderlind/CMakeFiles/sundials_sunadaptcontrollersoderlind_obj_shared.dir/sunadaptcontroller_soderlind.c.o
+  [ 60%] Built target sundials_sunadaptcontrollersoderlind_obj_shared
+  [ 62%] Linking C shared library libsundials_nvecserial.so
+  [ 62%] Built target sundials_nvecserial_shared
+  [ 63%] Linking C shared library libsundials_nvecmanyvector.so
+  [ 63%] Built target sundials_nvecmanyvector_shared
+  [ 65%] Linking C shared library libsundials_sunmatrixband.so
+  [ 65%] Built target sundials_sunmatrixband_shared
+  [ 67%] Linking C shared library libsundials_sunmatrixdense.so
+  [ 67%] Built target sundials_sunmatrixdense_shared
+  [ 68%] Linking C shared library libsundials_sunmatrixsparse.so
+  [ 68%] Built target sundials_sunmatrixsparse_shared
+  [ 68%] Built target fake_to_force_build_order_sundials_sunlinsolband_obj_shared
+  [ 68%] Built target fake_to_force_build_order_sundials_sunlinsoldense_obj_shared
+  [ 70%] Linking C shared library libsundials_sunlinsolpcg.so
+  [ 70%] Built target sundials_sunlinsolpcg_shared
+  [ 72%] Linking C shared library libsundials_sunlinsolspbcgs.so
+  [ 72%] Built target sundials_sunlinsolspbcgs_shared
+  [ 74%] Linking C shared library libsundials_sunlinsolspfgmr.so
+  [ 74%] Built target sundials_sunlinsolspfgmr_shared
+  [ 75%] Linking C shared library libsundials_sunlinsolspgmr.so
+  [ 75%] Built target sundials_sunlinsolspgmr_shared
+  [ 77%] Linking C shared library libsundials_sunlinsolsptfqmr.so
+  [ 77%] Built target sundials_sunlinsolsptfqmr_shared
+  [ 79%] Linking C shared library libsundials_sunnonlinsolnewton.so
+  [ 79%] Built target sundials_sunnonlinsolnewton_shared
+  [ 81%] Linking C shared library libsundials_sunnonlinsolfixedpoint.so
+  [ 81%] Built target sundials_sunnonlinsolfixedpoint_shared
+  [ 82%] Building C object src/sunlinsol/band/CMakeFiles/sundials_sunlinsolband_obj_shared.dir/sunlinsol_band.c.o
+  [ 82%] Built target sundials_sunlinsolband_obj_shared
+  [ 84%] Building C object src/sunlinsol/dense/CMakeFiles/sundials_sunlinsoldense_obj_shared.dir/sunlinsol_dense.c.o
+  [ 84%] Built target sundials_sunlinsoldense_obj_shared
+  [ 86%] Linking C shared library libsundials_sunlinsolband.so
+  [ 86%] Built target sundials_sunlinsolband_shared
+  [ 87%] Linking C shared library libsundials_sunlinsoldense.so
+  [ 87%] Built target sundials_sunlinsoldense_shared
+  [ 89%] Building C object src/ida/CMakeFiles/sundials_ida_obj_shared.dir/ida.c.o
+  [ 91%] Building C object src/ida/CMakeFiles/sundials_ida_obj_shared.dir/ida_bbdpre.c.o
+  [ 93%] Building C object src/ida/CMakeFiles/sundials_ida_obj_shared.dir/ida_ic.c.o
+  [ 94%] Building C object src/ida/CMakeFiles/sundials_ida_obj_shared.dir/ida_io.c.o
+  [ 96%] Building C object src/ida/CMakeFiles/sundials_ida_obj_shared.dir/ida_ls.c.o
+  [ 98%] Building C object src/ida/CMakeFiles/sundials_ida_obj_shared.dir/ida_nls.c.o
+  [ 98%] Built target sundials_ida_obj_shared
+  [100%] Linking C shared library libsundials_ida.so
+  [100%] Built target sundials_ida_shared
+  Install the project...
+  -- Install configuration: "Debug"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_core.so.7.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_core.so.7
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_core.so.7.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_core.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_adaptcontroller.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_band.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_base.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_context.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_context.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_convertibleto.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_core.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_core.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_dense.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_direct.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_errors.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_futils.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_iterative.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_linearsolver.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_linearsolver.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_logger.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_math.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_matrix.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_matrix.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_memory.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_memory.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_mpi_types.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_nonlinearsolver.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_nonlinearsolver.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_nvector.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_nvector.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_profiler.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_profiler.hpp
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_types_deprecated.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_types.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_version.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/priv/sundials_context_impl.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/priv/sundials_errors_impl.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecserial.so.7.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecserial.so.7
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecserial.so.7.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecserial.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/nvector/nvector_serial.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecmanyvector.so.7.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecmanyvector.so.7
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecmanyvector.so.7.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_nvecmanyvector.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/nvector/nvector_manyvector.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixband.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixband.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixband.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixband.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunmatrix/sunmatrix_band.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixdense.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixdense.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixdense.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixdense.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunmatrix/sunmatrix_dense.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixsparse.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixsparse.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixsparse.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunmatrixsparse.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunmatrix/sunmatrix_sparse.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolband.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolband.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolband.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolband.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunlinsol/sunlinsol_band.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsoldense.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsoldense.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsoldense.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsoldense.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunlinsol/sunlinsol_dense.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolpcg.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolpcg.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolpcg.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolpcg.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunlinsol/sunlinsol_pcg.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspbcgs.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspbcgs.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspbcgs.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspbcgs.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunlinsol/sunlinsol_spbcgs.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspfgmr.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspfgmr.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspfgmr.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspfgmr.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunlinsol/sunlinsol_spfgmr.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspgmr.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspgmr.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspgmr.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolspgmr.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunlinsol/sunlinsol_spgmr.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolsptfqmr.so.5.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolsptfqmr.so.5
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolsptfqmr.so.5.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunlinsolsptfqmr.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunlinsol/sunlinsol_sptfqmr.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolnewton.so.4.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolnewton.so.4
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolnewton.so.4.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolnewton.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunnonlinsol/sunnonlinsol_newton.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolfixedpoint.so.4.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolfixedpoint.so.4
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolfixedpoint.so.4.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_sunnonlinsolfixedpoint.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunnonlinsol/sunnonlinsol_fixedpoint.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunmemory/sunmemory_system.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunadaptcontroller/sunadaptcontroller_imexgus.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sunadaptcontroller/sunadaptcontroller_soderlind.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_ida.so.7.1.1
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_ida.so.7
+  -- Set non-toolchain portion of runtime path of "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_ida.so.7.1.1" to "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib"
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/libsundials_ida.so
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/ida/ida.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/ida/ida_bbdpre.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/ida/ida_ls.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_export.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/sundials_config.h
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/LICENSE
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/include/sundials/NOTICE
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/cmake/sundials/SUNDIALSTargets.cmake
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/cmake/sundials/SUNDIALSTargets-debug.cmake
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/cmake/sundials/SUNDIALSConfig.cmake
+  -- Installing: /data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/lib/cmake/sundials/SUNDIALSConfigVersion.cmake
+  cargo:root=/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out
+
+  --- stderr
+  wrapper.h:1:10: fatal error: 'nvector/nvector_serial.h' file not found
+  running: cd "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/build" && CMAKE_PREFIX_PATH="" LC_ALL="C" "cmake" "/data/nk523/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sundials-sys-0.6.2/vendor" "-B" "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/build" "-DCMAKE_INSTALL_BINDIR=lib" "-DCMAKE_INSTALL_LIBDIR=lib" "-DBUILD_STATIC_LIBS=OFF" "-DBUILD_SHARED_LIBS=ON" "-DBUILD_TESTING=OFF" "-DEXAMPLES_INSTALL=OFF" "-DEXAMPLES_ENABLE_C=OFF" "-DBUILD_ARKODE=OFF" "-DBUILD_CVODE=OFF" "-DBUILD_CVODES=OFF" "-DBUILD_IDA=ON" "-DBUILD_IDAS=OFF" "-DBUILD_KINSOL=OFF" "-DENABLE_KLU=OFF" "-DOPENMP_ENABLE=OFF" "-DPTHREAD_ENABLE=OFF" "-DCMAKE_INSTALL_PREFIX=/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out" "-DCMAKE_C_FLAGS= -ffunction-sections -fdata-sections -fPIC -m64 -w" "-DCMAKE_C_COMPILER=/usr/bin/cc" "-DCMAKE_CXX_FLAGS= -ffunction-sections -fdata-sections -fPIC -m64 -w" "-DCMAKE_CXX_COMPILER=/usr/bin/c++" "-DCMAKE_ASM_FLAGS= -ffunction-sections -fdata-sections -fPIC -m64 -w" "-DCMAKE_ASM_COMPILER=/usr/bin/cc" "-DCMAKE_BUILD_TYPE=Debug"
+  CMake Warning (deprecated) at cmake/SundialsDeprecated.cmake:39 (message):
+    The CMake option OPENMP_ENABLE is deprecated.  Use ENABLE_OPENMP instead.
+  Call Stack (most recent call first):
+    CMakeLists.txt:161 (include)
+  This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+  to suppress it.
+
+  CMake Warning (deprecated) at cmake/SundialsDeprecated.cmake:62 (message):
+    The CMake option PTHREAD_ENABLE is deprecated.  Use ENABLE_PTHREAD instead
+  Call Stack (most recent call first):
+    CMakeLists.txt:161 (include)
+  This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+  to suppress it.
+
+  CMake Warning at cmake/SundialsBuildOptionsPre.cmake:85 (message):
+    SUNDIALS is being built with extensive error checks, performance may be
+    affected.
+  Call Stack (most recent call first):
+    CMakeLists.txt:162 (include)
+
+
+  CMake Warning (unused-cli):
+    Manually-specified variables were not used by the project:
+
+      BUILD_TESTING
+      CMAKE_ASM_COMPILER
+      CMAKE_ASM_FLAGS
+      CMAKE_CXX_COMPILER
+
+
+  running: cd "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/build" && LC_ALL="C" MAKEFLAGS="-j --jobserver-fds=3,5 --jobserver-auth=3,5" "cmake" "--build" "/data/nk523/tmp/eqiora-scalar-convection/target/debug/build/sundials-sys-b77edf4a2bf67ea1/out/build" "--target" "install" "--config" "Debug"
+
+  Install shared components
+
+
+  Install NVECTOR_SERIAL
+
+
+  Install NVECTOR_MANYVECTOR
+
+
+  Install SUNMATRIX_BAND
+
+
+  Install SUNMATRIX_DENSE
+
+
+  Install SUNMATRIX_SPARSE
+
+
+  Install SUNLINSOL_BAND
+
+
+  Install SUNLINSOL_DENSE
+
+
+  Install SUNLINSOL_PCG
+
+
+  Install SUNLINSOL_SPBCGS
+
+
+  Install SUNLINSOL_SPFGMR
+
+
+  Install SUNLINSOL_SPGMR
+
+
+  Install SUNLINSOL_SPTFQMR
+
+
+  Install SUNNONLINSOL_NEWTON
+
+
+  Install SUNNONLINSOL_FIXEDPOINT
+
+
+  Install IDA
+
+  /usr/include/stdio.h:34:10: fatal error: 'stddef.h' file not found
+
+  thread 'main' (631578) panicked at [HOME]/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sundials-sys-0.6.2/build.rs:249:13:
+  Unable to generate bindings of the vendor sundials!
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+warning: build failed, waiting for other jobs to finish...
+💥 maturin failed
+  Caused by: Failed to build a native library through cargo
+  Caused by: Cargo build finished with "exit status: 101": `env -u CARGO PYO3_BUILD_EXTENSION_MODULE="1" PYO3_CONFIG_FILE="/data/nk523/tmp/eqiora-scalar-convection/target/maturin/pyo3-config-x86_64-unknown-linux-gnu-3.13-abi3.txt" PYO3_ENVIRONMENT_SIGNATURE="cpython-3.13-64bit" PYO3_PYTHON="/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python" PYTHON_SYS_EXECUTABLE="/data/nk523/tmp/eqiora-scalar-convection/combined-venv/bin/python" "cargo" "rustc" "--profile" "dev" "--message-format" "json-render-diagnostics" "--locked" "--manifest-path" "/data/nk523/tmp/eqiora-scalar-convection/wt/crates/eqiora-python/Cargo.toml" "--lib" "--crate-type" "cdylib" "--" "-C" "strip=symbols"`
