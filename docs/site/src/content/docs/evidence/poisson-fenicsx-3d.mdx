@@ -22,14 +22,16 @@ sources and hardware.
 
 ## Problem and accuracy
 
-Both tools solve on the unit cube, with coordinates in metres:
+Both tools solve on a cube with side length $\ell=1\,\mathrm{m}$:
 
 $$
--\Delta u=3\pi^2\sin(\pi x)\sin(\pi y)\sin(\pi z),\qquad
+-\Delta u=\frac{3\pi^2}{\ell^2}\sin(\pi x/\ell)\sin(\pi y/\ell)\sin(\pi z/\ell),\qquad
 u=0\text{ on every face}.
 $$
 
-The exact dimensionless solution is the product of the three sine factors.
+Each sine argument divides its physical coordinate by $\ell=1\,\mathrm{m}$.
+The forcing has units m⁻² for the dimensionless potential; the exact solution
+is the product of the three normalized sine factors.
 Both use hexahedral Q1 elements, binary64 arithmetic and two-point tensor
 Gauss integration. The actual FEniCSx rule, vertex-to-DOF correspondence and
 six essential faces are checked. Eqiora uses its ordinary installed Python
@@ -96,14 +98,51 @@ separate, with form compilation in a fresh JIT cache. Preparation wall time
 includes compiler-child work; process CPU excludes that child CPU. Imports are
 outside these clocks. Fresh processes do not imply cold operating-system caches.
 
-| N / tool | Mesh / prep (ms) |
+The tables retain each mesh level. Mesh setup and preparation are the cold
+observations described above. Finalization/assembly and linear solve use the
+[separate diagnostic calls](#separate-native-diagnostics). All durations are
+wall milliseconds.
+
+### 4 cells per axis
+
+| Tool / operation | Wall (ms) |
 |---|---:|
-| 4 / Eqiora | 2.80 / 10.75 |
-| 4 / FEniCSx | 3.58 / 916.79 |
-| 8 / Eqiora | 13.50 / 19.95 |
-| 8 / FEniCSx | 4.87 / 828.88 |
-| 16 / Eqiora | 88.45 / 85.51 |
-| 16 / FEniCSx | 13.79 / 848.74 |
+| Eqiora mesh setup | 2.796 |
+| FEniCSx mesh setup | 3.576 |
+| Eqiora preparation | 10.755 |
+| FEniCSx preparation | 916.790 |
+| Eqiora finalization | 7.587 |
+| FEniCSx assembly | 1.265 |
+| Eqiora linear solve | 0.033 |
+| FEniCSx linear solve | 0.138 |
+
+### 8 cells per axis
+
+| Tool / operation | Wall (ms) |
+|---|---:|
+| Eqiora mesh setup | 13.501 |
+| FEniCSx mesh setup | 4.870 |
+| Eqiora preparation | 19.949 |
+| FEniCSx preparation | 828.879 |
+| Eqiora finalization | 58.584 |
+| FEniCSx assembly | 4.117 |
+| Eqiora linear solve | 0.111 |
+| FEniCSx linear solve | 0.208 |
+
+### 16 cells per axis
+
+| Tool / operation | Wall (ms) |
+|---|---:|
+| Eqiora mesh setup | 88.446 |
+| FEniCSx mesh setup | 13.793 |
+| Eqiora preparation | 85.512 |
+| FEniCSx preparation | 848.736 |
+| Eqiora finalization | 467.107 |
+| FEniCSx assembly | 24.229 |
+| Eqiora linear solve | 0.873 |
+| FEniCSx linear solve | 0.742 |
+
+### Memory
 
 Peak RSS below is sampled after the first field return, before accuracy checks
 and profiling. It includes imports and preparation; it is not operator-only
@@ -121,17 +160,19 @@ high-water marks. These are not simultaneous aggregate process-tree memory.
 
 ## Separate native diagnostics
 
-At 16 cells per axis, the extra Eqiora diagnostic recorded 467.107 ms in scalar
-finalization and 0.873 ms in linear solve. FEniCSx recorded 24.229 ms in assembly
-and 0.742 ms in its linear-solve bracket. These are different tool-native
-boundaries, not phase speed ratios or a partition of the unprofiled medians.
+The finalization/assembly and linear-solve rows above come from one extra
+profiled call per tool and mesh, separate from the seven uninstrumented calls.
+They are inclusive tool-native observations, not a partition of an ordinary
+execution median. The two tools' boundaries differ, so these rows do not
+establish phase speed ratios.
 
 Eqiora scalar finalization includes numerical preparation, representability
 checks and canonical-system construction, excluding earlier mapping work.
 FEniCSx assembly includes allocation, assembly, lifting, ghost accumulation and
 boundary conditions. Its linear bracket includes KSP setup, solve, true-residual
 acceptance and policy/summary queries. Full phase inventories are retained.
-Eqiora also recorded 383.645 ms of solve self time; this observation alone does
+At 16 cells per axis, Eqiora also recorded 383.645 ms of solve self time; this
+observation alone does
 not attribute that time to a particular operation.
 
 ## Environment and reproduction
@@ -139,8 +180,12 @@ not attribute that time to a particular operation.
 This uses an optimized Eqiora **development wheel**, version `0.1.5`, built from
 an sdist with Rust 1.89, fat LTO and the repository's package-specific optimization
 overrides. It is not a new published release or a complete distribution-profile
-acceptance. FEniCSx uses DOLFINx/Basix 0.11, PETSc 3.25.6 and the checked-in lock.
-Each child uses one CPU, one thread per library and one rank, with GPU hidden.
+acceptance. The external stack uses the checked-in lock.
+Both Python environments used CPython 3.13.18 and NumPy 2.5.4. The external
+stack used DOLFINx, Basix and FFCx 0.11.0, UFL 2026.1.0, PETSc/petsc4py
+3.25.6 and mpi4py 4.1.2. Each child uses one CPU and one rank, with GPU hidden.
+`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`,
+`RAYON_NUM_THREADS` and `BLIS_NUM_THREADS` were all `1`.
 
 The worker ran on logical CPU 8 and its sibling was CPU 40; the supervisor ran
 on CPU 9, on another physical core. Monitoring covered 21.636 seconds. CPU 40
