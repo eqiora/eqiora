@@ -1059,6 +1059,11 @@ class ChangeClassificationTests(unittest.TestCase):
         self.assertFalse(private.lane("python").selected)
         self.assertFalse(private.lane("studio").selected)
 
+        documentation = impact_plan(["crates/eqiora-numerics/README.md"])
+        for lane in ("rust", "msrv", "python", "studio"):
+            with self.subTest(documentation_lane=lane):
+                self.assertFalse(documentation.lane(lane).selected)
+
     def test_impact_plan_fail_closed_reasons_are_stable(self) -> None:
         unknown = impact_plan(["new-area/file.bin", "docs/architecture.md"])
         protected = impact_plan(["new-area/file.bin", "tools/ci/check_gate.py"])

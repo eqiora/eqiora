@@ -226,11 +226,12 @@ does not establish optional native-backend or scientific claims.
   architecture, MSRV, and the other lanes keep their existing checks.
   Python adapter Rust changes also include the facade and its reverse dependencies:
   the facade's control-plane test reads adapter source outside Cargo dependencies.
-- Every change under `crates/eqiora-numerics/` selects both installed-wheel
-  Python versions (3.11 and 3.14), including native setup and product tests.
+- Numerics package code, tests and build inputs under `crates/eqiora-numerics/`
+  select both installed-wheel Python versions (3.11 and 3.14), including native
+  setup and product tests. Existing documentation-only selection remains.
   Numerics is a direct native product dependency of the Python extension, so
   its observable behavior must be checked against installed Python consumers.
-  This adds that matrix cost to every numerics package change; it does not
+  This adds that matrix cost to those numerics changes; it does not
   cover the extension's complete transitive native dependency graph. Unrelated
   private crates and Studio keep their existing selection rules.
 - Pull-request jobs run only on GitHub-hosted ephemeral runners.
