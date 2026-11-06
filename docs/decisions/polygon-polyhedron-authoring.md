@@ -1,6 +1,6 @@
 # Handle-first polygon and convex-polyhedron authoring
 
-Proposed API, awaiting risk review before implementation:
+The shared authoring API:
 
 - Rust `GeometryGraph::polygon(vertices_m: Vec<[f64; 2]>, tolerance_m: f64)`
   constructs one simple filled polygon. Vertices describe a cyclic boundary;
@@ -13,6 +13,8 @@ Proposed API, awaiting risk review before implementation:
   `boundaries()` follows authored polygon-edge or face order. A handle remains
   owned by its original graph and operation. `build(named_topology)` maps handles
   to the existing canonical vertex/edge/facet enumeration before atomic naming.
+  Names must cover the region and every boundary exactly once; missing or
+  overlapping coverage rejects.
   Coordinate equality is used only during this primitive's construction to map
   its own validated authored topology, never to rebind foreign geometry selections.
 - Python projects these as keyword-only `polygon(vertices, tolerance)` and
@@ -28,13 +30,14 @@ cyclic loop rotations and vertex-table permutations preserve named Geometry
 identity when names follow the same physical entities. Reversing a shell's
 outward orientation rejects rather than silently repairing it.
 
-Add a shared Rust geometry bounds query for current finite families. Python
+`CanonicalGeometryV1::bounds_m()` returns exact axis-aligned bounds for every
+current finite family. Python
 bounds and repr consume it without a Cartesian-only expect. Planar polygon
 selection/viewing already consumes the shared PlanarRegion. Three-dimensional
 polyhedron viewing retains the existing typed unsupported-projection diagnostic;
 it must not panic or pretend a two-dimensional projection is three-dimensional.
 
-Independent test expectations are precommitted before product changes. For the
+Independent test expectations were precommitted before product changes. For the
 2D skew box, b=(1/4,-1/2) m and B=((9/8,-21/16),(3/2,9/2)) m give
 area det(B)=225/32 m² and bounds x=[-17/16,11/8], y=[-1/2,11/2].
 For the 3D skew box, b=(1/4,-1/2,3/4) m and

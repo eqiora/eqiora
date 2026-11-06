@@ -18,6 +18,7 @@ use crate::{
     GeometryBuildReceipt, GeometryFaceHandle, GeometrySolidOperation, NamedEntitySet,
 };
 
+mod polytope;
 mod topology;
 use topology::{BoundarySource, OperationKind, RegionSource};
 pub use topology::{
@@ -180,10 +181,10 @@ impl GeometryGraph {
     ) -> Result<GeometryOperation, Diagnostic> {
         self.require_owner(rectangle)?;
         self.require_owner(circle)?;
-        let OperationKind::Rectangle { bounds } = rectangle.kind else {
+        let OperationKind::Rectangle { bounds } = rectangle.kind.clone() else {
             return Err(invalid("subtract target must be a rectangle operation"));
         };
-        let OperationKind::Circle { center, radius } = circle.kind else {
+        let OperationKind::Circle { center, radius } = circle.kind.clone() else {
             return Err(invalid("subtract tool must be a circle operation"));
         };
         if center[0] - radius <= bounds[0][0]
@@ -216,13 +217,13 @@ impl GeometryGraph {
         self.require_owner(right)?;
         let OperationKind::Rectangle {
             bounds: left_bounds,
-        } = left.kind
+        } = left.kind.clone()
         else {
             return Err(invalid("partition inputs must be rectangle operations"));
         };
         let OperationKind::Rectangle {
             bounds: right_bounds,
-        } = right.kind
+        } = right.kind.clone()
         else {
             return Err(invalid("partition inputs must be rectangle operations"));
         };
@@ -306,7 +307,10 @@ impl GeometryGraph {
                 ));
             }
         }
-        match operation.kind {
+        match operation.kind.clone() {
+            OperationKind::Polygon(primitive) | OperationKind::ConvexPolyhedron(primitive) => {
+                primitive.with_names(sets)
+            }
             OperationKind::Interval { bounds } => {
                 CanonicalCartesianBoxGeometryV1::new(vec![bounds], sets)
                     .map(CanonicalGeometryV1::from_cartesian_box_v1)
@@ -373,6 +377,10 @@ impl GeometryGraph {
             ));
         }
         match (&target.kind, handle) {
+            (OperationKind::Polygon(primitive) | OperationKind::ConvexPolyhedron(primitive), _) => {
+                polytope::project(target, primitive, handle)
+            }
+
             (OperationKind::Interval { .. }, GeometryTopologyHandle::Region(handle))
                 if handle.operation == target.operation
                     && handle.source == RegionSource::Interval =>
