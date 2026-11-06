@@ -1,0 +1,32 @@
+{
+  "authored_parameters": {
+    "Lx": 2.0,
+    "Ly": 3.0,
+    "pi_value": 3.141592653589793,
+    "source_scale": 3.5640238115044904
+  },
+  "candidate_sha256": "7bfac657a2d8d6967ddbd5d5a5395b287037109574e67b613aea3a7b25ad1fb5",
+  "cpu_affinity": [
+    63
+  ],
+  "eqiora_version": "0.1.5",
+  "export_identity_sha256": "ce0168e4d9f00aaf79debd0eb86b9d92dcd915f73b010603f82d48d79f8678b7",
+  "finished_at": "2026-11-06T09:49:17.927499+00:00",
+  "native_module_sha256": "3191baa67a0c4bca4dc08f5965a0d4de219e5baa444b40de9cd47e6c9a648333",
+  "ordinary_run_attempted": 1,
+  "ordinary_run_completed": 1,
+  "pde_solves": 1,
+  "plan_identity": "b17d528ae26b5c3d4946d0b5574f6c35215b2defff8a3c9d70d1d79c4b4cbdda",
+  "plan_reopens": 1,
+  "production_export_sha256": "af9706884a7f59aba10a02bce1d9f4adf5f8e7e232261e746c26684eabf4f625",
+  "profile_calls": 0,
+  "python_version": "3.13.14 (main, Jul 23 2026, 14:44:45) [Clang 22.1.3 ]",
+  "reference_table_sha256": "588b0730d4984bc9dd60d668ac832f11ba6cc20fc4b12d8ba5fe967a1d1b9632",
+  "result_reopens": 1,
+  "result_sha256": "e9571e2d98c591fd0265b4ee3b64d0a67c18ea21a4c9e147e434e9b1a5e2f0f3",
+  "source_sha256": "62e355b65196e9f4ca88864c7809c9e7549bf0d43b23c9e7860c70f64b078118",
+  "started_at": "2026-11-06T09:49:17.746957+00:00",
+  "status": "exported-not-yet-compared",
+  "timed_samples": 0,
+  "warmups": 0
+}

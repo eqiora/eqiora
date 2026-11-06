@@ -1,0 +1,17 @@
+public component AffineQ2Sine(
+  support body: volume(ambient_dimension=2),
+  support x_lower: boundary(parent=body),
+  support x_upper: boundary(parent=body),
+  support y_lower: boundary(parent=body),
+  support y_upper: boundary(parent=body),
+  parameter Lx: m,
+  parameter Ly: m,
+  parameter pi_value: 1,
+  parameter source_scale: 1/m^2) {
+  variable u: 1 on body in h1;
+  relation balance on body { -div(grad(u))=source_scale*math.sin(pi_value*coordinate(0)/Lx)*math.sin(pi_value*coordinate(1)/Ly); }
+  relation fixed_x_lower on x_lower { trace(u)=0; }
+  relation fixed_x_upper on x_upper { trace(u)=0; }
+  relation fixed_y_lower on y_lower { trace(u)=0; }
+  relation fixed_y_upper on y_upper { trace(u)=0; }
+}

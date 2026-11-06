@@ -42,7 +42,8 @@ def fixture(dimension=3, n=2):
                              coefficient_count=lambda association: len(blocks[association]),
                              logical_shape=lambda association: (len(blocks[association]),),
                              values=lambda association: blocks[association])
-    result = SimpleNamespace(plan_key="actual-plan", model_digest="actual-model", output=lambda field: output, to_bytes=lambda: b"actual Result bytes")
+    result_wire = {"schema": "eqiora.common-result/v28", "content": {"plan_identity": "actual-plan"}}
+    result = SimpleNamespace(plan_key="different-run-request-identity", model_digest="actual-model", output=lambda field: output, to_bytes=lambda: json.dumps(result_wire).encode())
     return plan, result, output, lengths, blocks, entities, wire
 
 
@@ -64,7 +65,17 @@ class ProductionProtocol(unittest.TestCase):
             p.extract_candidate(state[0], state[1], 'u', state[3], 2)
 
     def test_result_from_another_plan_rejected(self):
-        self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: setattr(result, 'plan_key', 'different-plan'))
+        self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: setattr(plan, 'identity', 'different-plan'))
+
+    def test_run_request_key_is_retained_separately_from_plan_identity(self):
+        plan, result, _, lengths, _, _, _ = fixture()
+        _, identity = p.extract_candidate(plan, result, 'u', lengths, 2)
+        self.assertNotEqual(result.plan_key, plan.identity)
+        self.assertEqual(identity['run_request_key'], result.plan_key)
+
+    def test_result_schema_and_model_link_are_authenticated(self):
+        self.rejected(lambda plan, result, *rest: setattr(result, 'to_bytes', lambda: b'{"schema":"old","content":{}}'))
+        self.rejected(lambda plan, result, *rest: setattr(result, 'model_digest', 'another-model'))
 
     def test_wrong_selected_field_rejected(self):
         self.rejected(lambda plan, result, output, lengths, blocks, entities, wire: setattr(output, 'field', 'another-field'))

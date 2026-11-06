@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "lengths_m": [
+    2,
+    3
+  ],
+  "N": 2,
+  "gauss_points": 4,
+  "reaction_units": "m^(0)",
+  "coefficient_count": 25,
+  "free_count": 20,
+  "upper_reaction_count": 5,
+  "reaction_convention": "unscaled physical K*v-F-G on upper-x face",
+  "rounding_ceiling_status": "declared 8192-unit-roundoff ceiling; not a universal floating-point theorem",
+  "free_residual_squared": {
+    "numerator": "9178081",
+    "denominator": "591435064042482709562301847500226560"
+  },
+  "free_residual_squared_budget": {
+    "numerator": "1",
+    "denominator": "1208925819614629174706176"
+  },
+  "maximum_coefficient_error": {
+    "numerator": "3",
+    "denominator": "1125899906842624"
+  },
+  "coefficient_error_budget": {
+    "numerator": "25",
+    "denominator": "25769803776"
+  },
+  "Kinf_bound": {
+    "numerator": "416",
+    "denominator": "27"
+  },
+  "Binf": {
+    "numerator": "91",
+    "denominator": "120"
+  },
+  "reaction_component_budget_rho": {
+    "numerator": "67379",
+    "denominator": "1187472557998080"
+  },
+  "maximum_native_reaction_error": {
+    "numerator": "1081",
+    "denominator": "1215971899390033920"
+  },
+  "native_reaction_sum": {
+    "numerator": "144115188075856017",
+    "denominator": "36028797018963968"
+  },
+  "full_vector_reaction_sum": {
+    "numerator": "108086391056892049",
+    "denominator": "27021597764222976"
+  },
+  "analytic_reaction_sum": {
+    "numerator": "4",
+    "denominator": "1"
+  },
+  "native_sum_vs_full_vector_error": {
+    "numerator": "145",
+    "denominator": "108086391056891904"
+  },
+  "native_sum_vs_full_vector_budget": {
+    "numerator": "67379",
+    "denominator": "237494511599616"
+  },
+  "native_sum_vs_target_error": {
+    "numerator": "145",
+    "denominator": "36028797018963968"
+  },
+  "native_sum_vs_target_budget": {
+    "numerator": "53450137",
+    "denominator": "712483534798848"
+  },
+  "checks": {
+    "free_residual_squared": true,
+    "every_coefficient": true,
+    "every_native_reaction": true,
+    "native_sum_vs_full_vector_reaction_sum": true,
+    "native_sum_vs_analytic_target": true
+  },
+  "accepted": true,
+  "input_sha256": "dedc25ab0867495f0de5a3964c41577b9ba39c48fa27fa96f08b7020c0300c2a"
+}

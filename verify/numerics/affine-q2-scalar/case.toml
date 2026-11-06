@@ -1,0 +1,31 @@
+id = "numerics.affine-q2-scalar"
+status = "implemented"
+scope = "ordinary-affine-cartesian-full-q2-scalar-diffusion"
+reference_kind = "independent-validated-tensor-galerkin-reference-and-full-vector-exact-integrals"
+capabilities = [
+  "ordinary-cartesian-q2-scalar-diffusion",
+  "complete-quadratic-coefficient-replay",
+  "explicit-effective-assembly-quadrature",
+  "physical-l2-and-h1-seminorm-finite-level-verification",
+]
+
+[problem]
+equation = "-Laplacian(u) = pi^2 sum_i(L_i^-2) product_i sin(pi x_i/L_i)"
+domain = "[0,2] x [0,3] m and [0,2] x [0,3] x [0,4] m"
+boundary = "homogeneous essential on every face"
+method = "full tensor Q2 Galerkin; four Gauss points per axis; N=2,4,8"
+
+[claim_boundary]
+execution = "installed Python ordinary host-serial real scalar path"
+geometry = "affine Cartesian quads and hexes"
+coefficients = "complete vertex, edge, face where present, and nodal cell blocks"
+error = "physical L2 and H1 seminorm against independently enclosed finite-grid references"
+native_polynomial_reactions = "complementary archived native evidence, not executed by this evidence target"
+ordinary_p2_or_vector = false
+nonaffine_or_curved = false
+mpi_or_gpu = false
+performance = false
+
+[evidence]
+runner = "python-installed-wheel"
+script = "tools/ci/python_package_gate.py"

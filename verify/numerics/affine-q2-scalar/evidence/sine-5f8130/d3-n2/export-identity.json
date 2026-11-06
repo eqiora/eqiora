@@ -1,0 +1,1513 @@
+{
+  "candidate_sha256": "40163fd796330fb4b6fb13bf12b33e62cfd44638db0f62cbfcc956fa13a1d91e",
+  "coefficient_entities": [
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "0",
+        "0"
+      ],
+      "entity": [
+        0,
+        0
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "0",
+        "2"
+      ],
+      "entity": [
+        0,
+        1
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "0",
+        "4"
+      ],
+      "entity": [
+        0,
+        2
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "0"
+      ],
+      "entity": [
+        0,
+        3
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "2"
+      ],
+      "entity": [
+        0,
+        4
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "4"
+      ],
+      "entity": [
+        0,
+        5
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "3",
+        "0"
+      ],
+      "entity": [
+        0,
+        6
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "3",
+        "2"
+      ],
+      "entity": [
+        0,
+        7
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "3",
+        "4"
+      ],
+      "entity": [
+        0,
+        8
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "0",
+        "0"
+      ],
+      "entity": [
+        0,
+        9
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "0",
+        "2"
+      ],
+      "entity": [
+        0,
+        10
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "0",
+        "4"
+      ],
+      "entity": [
+        0,
+        11
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "0"
+      ],
+      "entity": [
+        0,
+        12
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "2"
+      ],
+      "entity": [
+        0,
+        13
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "4"
+      ],
+      "entity": [
+        0,
+        14
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "3",
+        "0"
+      ],
+      "entity": [
+        0,
+        15
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "3",
+        "2"
+      ],
+      "entity": [
+        0,
+        16
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "3",
+        "4"
+      ],
+      "entity": [
+        0,
+        17
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "0",
+        "0"
+      ],
+      "entity": [
+        0,
+        18
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "0",
+        "2"
+      ],
+      "entity": [
+        0,
+        19
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "0",
+        "4"
+      ],
+      "entity": [
+        0,
+        20
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "0"
+      ],
+      "entity": [
+        0,
+        21
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "2"
+      ],
+      "entity": [
+        0,
+        22
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "4"
+      ],
+      "entity": [
+        0,
+        23
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "3",
+        "0"
+      ],
+      "entity": [
+        0,
+        24
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "3",
+        "2"
+      ],
+      "entity": [
+        0,
+        25
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "3",
+        "4"
+      ],
+      "entity": [
+        0,
+        26
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "0"
+      ],
+      "entity": [
+        1,
+        0
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "2"
+      ],
+      "entity": [
+        1,
+        1
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "4"
+      ],
+      "entity": [
+        1,
+        2
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "0"
+      ],
+      "entity": [
+        1,
+        3
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "2"
+      ],
+      "entity": [
+        1,
+        4
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "4"
+      ],
+      "entity": [
+        1,
+        5
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "0"
+      ],
+      "entity": [
+        1,
+        6
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "2"
+      ],
+      "entity": [
+        1,
+        7
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "4"
+      ],
+      "entity": [
+        1,
+        8
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "0"
+      ],
+      "entity": [
+        1,
+        9
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "2"
+      ],
+      "entity": [
+        1,
+        10
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "4"
+      ],
+      "entity": [
+        1,
+        11
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "0"
+      ],
+      "entity": [
+        1,
+        12
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "2"
+      ],
+      "entity": [
+        1,
+        13
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "4"
+      ],
+      "entity": [
+        1,
+        14
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "0"
+      ],
+      "entity": [
+        1,
+        15
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "2"
+      ],
+      "entity": [
+        1,
+        16
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "4"
+      ],
+      "entity": [
+        1,
+        17
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "0"
+      ],
+      "entity": [
+        1,
+        18
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "2"
+      ],
+      "entity": [
+        1,
+        19
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "4"
+      ],
+      "entity": [
+        1,
+        20
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "0"
+      ],
+      "entity": [
+        1,
+        21
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "2"
+      ],
+      "entity": [
+        1,
+        22
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "4"
+      ],
+      "entity": [
+        1,
+        23
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "0"
+      ],
+      "entity": [
+        1,
+        24
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "2"
+      ],
+      "entity": [
+        1,
+        25
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "4"
+      ],
+      "entity": [
+        1,
+        26
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "0"
+      ],
+      "entity": [
+        1,
+        27
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "2"
+      ],
+      "entity": [
+        1,
+        28
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "4"
+      ],
+      "entity": [
+        1,
+        29
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "0"
+      ],
+      "entity": [
+        1,
+        30
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "2"
+      ],
+      "entity": [
+        1,
+        31
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "4"
+      ],
+      "entity": [
+        1,
+        32
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "0"
+      ],
+      "entity": [
+        1,
+        33
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "2"
+      ],
+      "entity": [
+        1,
+        34
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "4"
+      ],
+      "entity": [
+        1,
+        35
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0",
+        "1"
+      ],
+      "entity": [
+        1,
+        36
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0",
+        "3"
+      ],
+      "entity": [
+        1,
+        37
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "1"
+      ],
+      "entity": [
+        1,
+        38
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "1.5",
+        "3"
+      ],
+      "entity": [
+        1,
+        39
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "3",
+        "1"
+      ],
+      "entity": [
+        1,
+        40
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "3",
+        "3"
+      ],
+      "entity": [
+        1,
+        41
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0",
+        "1"
+      ],
+      "entity": [
+        1,
+        42
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0",
+        "3"
+      ],
+      "entity": [
+        1,
+        43
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "1"
+      ],
+      "entity": [
+        1,
+        44
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "1.5",
+        "3"
+      ],
+      "entity": [
+        1,
+        45
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "3",
+        "1"
+      ],
+      "entity": [
+        1,
+        46
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "3",
+        "3"
+      ],
+      "entity": [
+        1,
+        47
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0",
+        "1"
+      ],
+      "entity": [
+        1,
+        48
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0",
+        "3"
+      ],
+      "entity": [
+        1,
+        49
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "1"
+      ],
+      "entity": [
+        1,
+        50
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "1.5",
+        "3"
+      ],
+      "entity": [
+        1,
+        51
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "3",
+        "1"
+      ],
+      "entity": [
+        1,
+        52
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "3",
+        "3"
+      ],
+      "entity": [
+        1,
+        53
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "0"
+      ],
+      "entity": [
+        2,
+        0
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "2"
+      ],
+      "entity": [
+        2,
+        1
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "4"
+      ],
+      "entity": [
+        2,
+        2
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "0"
+      ],
+      "entity": [
+        2,
+        3
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "2"
+      ],
+      "entity": [
+        2,
+        4
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "4"
+      ],
+      "entity": [
+        2,
+        5
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "0"
+      ],
+      "entity": [
+        2,
+        6
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "2"
+      ],
+      "entity": [
+        2,
+        7
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "4"
+      ],
+      "entity": [
+        2,
+        8
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "0"
+      ],
+      "entity": [
+        2,
+        9
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "2"
+      ],
+      "entity": [
+        2,
+        10
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "4"
+      ],
+      "entity": [
+        2,
+        11
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "1"
+      ],
+      "entity": [
+        2,
+        12
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "0",
+        "3"
+      ],
+      "entity": [
+        2,
+        13
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "1"
+      ],
+      "entity": [
+        2,
+        14
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "1.5",
+        "3"
+      ],
+      "entity": [
+        2,
+        15
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "1"
+      ],
+      "entity": [
+        2,
+        16
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0.5",
+        "3",
+        "3"
+      ],
+      "entity": [
+        2,
+        17
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "1"
+      ],
+      "entity": [
+        2,
+        18
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "0",
+        "3"
+      ],
+      "entity": [
+        2,
+        19
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "1"
+      ],
+      "entity": [
+        2,
+        20
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "1.5",
+        "3"
+      ],
+      "entity": [
+        2,
+        21
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "1"
+      ],
+      "entity": [
+        2,
+        22
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1.5",
+        "3",
+        "3"
+      ],
+      "entity": [
+        2,
+        23
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "1"
+      ],
+      "entity": [
+        2,
+        24
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0",
+        "0.75",
+        "3"
+      ],
+      "entity": [
+        2,
+        25
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "1"
+      ],
+      "entity": [
+        2,
+        26
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "0",
+        "2.25",
+        "3"
+      ],
+      "entity": [
+        2,
+        27
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "1"
+      ],
+      "entity": [
+        2,
+        28
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1",
+        "0.75",
+        "3"
+      ],
+      "entity": [
+        2,
+        29
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "1"
+      ],
+      "entity": [
+        2,
+        30
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "1",
+        "2.25",
+        "3"
+      ],
+      "entity": [
+        2,
+        31
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "1"
+      ],
+      "entity": [
+        2,
+        32
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "2",
+        "0.75",
+        "3"
+      ],
+      "entity": [
+        2,
+        33
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "1"
+      ],
+      "entity": [
+        2,
+        34
+      ]
+    },
+    {
+      "association": "face",
+      "coordinates_m": [
+        "2",
+        "2.25",
+        "3"
+      ],
+      "entity": [
+        2,
+        35
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "1"
+      ],
+      "entity": [
+        3,
+        0
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.5",
+        "0.75",
+        "3"
+      ],
+      "entity": [
+        3,
+        1
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "1"
+      ],
+      "entity": [
+        3,
+        2
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.5",
+        "2.25",
+        "3"
+      ],
+      "entity": [
+        3,
+        3
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "1"
+      ],
+      "entity": [
+        3,
+        4
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.5",
+        "0.75",
+        "3"
+      ],
+      "entity": [
+        3,
+        5
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "1"
+      ],
+      "entity": [
+        3,
+        6
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.5",
+        "2.25",
+        "3"
+      ],
+      "entity": [
+        3,
+        7
+      ]
+    }
+  ],
+  "mesh_digest": "7f64bea505ce6559f795e34f8a36fb84408a9d50f33586d80dde686ce347a2fa",
+  "mesh_sha256": "6e1104884c12c1888e5725b3b775b60e9aaf972592956e5eb1fe297d42560ace",
+  "model_digest": "5e1b93ea3d5256fba507ead30308a383a83269d656922a83e0f1cde916928a3a",
+  "plan_identity": "0dd9fe99d641cc2e41179f8bc8bd700e5d1e4f6ad250a641c5faa4e702406cfc",
+  "plan_sha256": "c9eace2717c956f58df7d3000b735e86be2a28e93ca94c7a80352df548f51234",
+  "result_sha256": "7ceeb52694ebbc05945ba4763990efc57124fb33635f1397416152e6b0530604",
+  "run_request_key": "5f252aa1fc2a5074cca67a4a4307002a1411691b4ddae411ebe368841e87539c",
+  "schema": 1
+}
