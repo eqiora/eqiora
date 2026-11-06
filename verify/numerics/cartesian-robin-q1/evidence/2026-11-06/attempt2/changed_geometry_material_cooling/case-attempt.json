@@ -1,0 +1,16 @@
+{
+  "authored_source_sha256": "c0c547519bbba290c233a9143f38d19efc4db49e6802a49639dc3fe552df7907",
+  "case": "changed_geometry_material_cooling",
+  "inputs": [
+    3,
+    2,
+    2,
+    4,
+    310,
+    280
+  ],
+  "native_executable_sha256": "87d7c4d1efbb45a0d1a6fd02e9725fa72301bbb8c3afefd7c8cdb30aef8f1c6d",
+  "schema": 1,
+  "source_head": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+  "status": "attempt-started"
+}

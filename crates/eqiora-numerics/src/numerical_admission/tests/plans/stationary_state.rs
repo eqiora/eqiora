@@ -43,6 +43,7 @@ fn stationary_material_flux_matches_nonzero_natural_data_without_double_counting
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -102,7 +103,7 @@ fn stationary_material_flux_matches_nonzero_natural_data_without_double_counting
         );
         assert!(
             crate::CommonResult::from_bytes(
-                &result_replay::reseal_values(&result, 0, &[1., 1.5, 2.25]),
+                &result_replay::reseal_block_values(&result, 0, 0, &[1., 1.5, 2.25]),
                 &plan,
             )
             .is_err()
@@ -179,6 +180,7 @@ fn stationary_material_reaction_and_flux_close_the_public_newton_path() {
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let plan = replay_plan(plan, &REFERENCE_LINEAR_SOLVER);
@@ -220,7 +222,7 @@ fn stationary_material_reaction_and_flux_close_the_public_newton_path() {
         );
         assert!(
             crate::CommonResult::from_bytes(
-                &result_replay::reseal_values(&result, 0, &[2., 2.25, 2.]),
+                &result_replay::reseal_block_values(&result, 0, 0, &[2., 2.25, 2.]),
                 &plan
             )
             .is_err()
@@ -254,6 +256,7 @@ fn stationary_newton_retains_seed_history_and_replays_original_equations() {
         None,
         None,
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
         None,
     )
@@ -307,10 +310,13 @@ fn stationary_newton_retains_seed_history_and_replays_original_equations() {
         result
     );
     assert!(
-        crate::CommonResult::from_bytes(&result_replay::reseal_values(&result, 0, &[0.; 5]), &plan)
-            .unwrap_err()
-            .message()
-            .contains("residual")
+        crate::CommonResult::from_bytes(
+            &result_replay::reseal_block_values(&result, 0, 0, &[0.; 5]),
+            &plan
+        )
+        .unwrap_err()
+        .message()
+        .contains("residual")
     );
     let zero = spatial
         .run_result(Some(&state(exact.to_vec())), &REFERENCE_LINEAR_SOLVER)

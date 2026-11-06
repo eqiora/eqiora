@@ -1,0 +1,39 @@
+{
+  "utc": "2026-11-06T10:34:43.152030+00:00",
+  "pid": 476498,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/native-producer",
+    "--ignored",
+    "--exact",
+    "numerical_admission::tests::plans::robin::native::ordinary_robin_producer_exports_full_operator_coefficients_and_reactions",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "environment": {
+    "EQIORA_ROBIN_OUTPUT": "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2",
+    "EQIORA_ROBIN_SOURCE_HEAD": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "HIP_VISIBLE_DEVICES": "",
+    "ROCR_VISIBLE_DEVICES": ""
+  },
+  "parent_affinity": [
+    63
+  ],
+  "child_affinity_at_start": [
+    63
+  ],
+  "mpi_environment": {},
+  "head": "619725c1891e5b6bb2d98dd4ed2f3989f6fd17c2",
+  "tree": "00a14fdd63b4b123a47bd36bc544ceecb55850f9",
+  "binary_sha256": "87d7c4d1efbb45a0d1a6fd02e9725fa72301bbb8c3afefd7c8cdb30aef8f1c6d",
+  "launch_plan_sha256": "eb723d565136c4bac996dd1535bcb75ea28c64e849a965085c76f88f5d9f5156"
+}

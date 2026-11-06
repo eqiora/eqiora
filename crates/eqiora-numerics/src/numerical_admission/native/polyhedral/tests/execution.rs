@@ -72,7 +72,10 @@ fn execute<S: Coefficient + Send + Sync>(
                 &owner.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
-                LinearOperatorProperties::General,
+                RegionAssemblyPolicy {
+                    operator_properties: LinearOperatorProperties::General,
+                    quadrature: None,
+                },
             )
             .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap();
@@ -176,6 +179,7 @@ fn execute<S: Coefficient + Send + Sync>(
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let bytes = public.to_bytes().unwrap();
@@ -254,7 +258,7 @@ fn execute<S: Coefficient + Send + Sync>(
             assert!(crate::CommonResult::from_bytes(corrupted.as_bytes(), &public).is_err());
         }
         let old = String::from_utf8(bytes).unwrap().replace(
-            "eqiora.resolved-common-plan/v27",
+            "eqiora.resolved-common-plan/v28",
             "eqiora.resolved-common-plan/v13",
         );
         assert!(
@@ -275,6 +279,7 @@ fn execute<S: Coefficient + Send + Sync>(
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
             None,
         )
@@ -322,7 +327,7 @@ fn execute<S: Coefficient + Send + Sync>(
         let other = NativeSpatialPolicy::FiniteElement(CommonSpatialRequest::Uniform(other_policy));
         assert_ne!(
             native.policy_identity,
-            policy_identity(&other, &linear, None, None, None).unwrap()
+            policy_identity(&other, &linear, None, None, None, None).unwrap()
         );
         assert!(
             recognized
@@ -413,7 +418,10 @@ fn execute<S: Coefficient + Send + Sync>(
                 &foreign.resources,
                 &equations.discretizations(space, None).unwrap(),
                 &eqiora_realization::SystemScaling::Dimensional,
-                LinearOperatorProperties::General,
+                RegionAssemblyPolicy {
+                    operator_properties: LinearOperatorProperties::General,
+                    quadrature: None,
+                },
             )
             .and_then(|system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None))
             .unwrap_err();
@@ -437,7 +445,10 @@ fn execute<S: Coefficient + Send + Sync>(
                     &owner.resources,
                     &equations.discretizations(wrong, None).unwrap(),
                     &eqiora_realization::SystemScaling::Dimensional,
-                    LinearOperatorProperties::General
+                    RegionAssemblyPolicy {
+                        operator_properties: LinearOperatorProperties::General,
+                        quadrature: None
+                    },
                 )
                 .and_then(
                     |system| system.solve(LinearSolveRequest::new(backend, policy.clone()), None)

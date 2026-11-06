@@ -1,4 +1,5 @@
 use super::*;
+mod artifact_capture;
 
 use eqiora_artifact::{
     AffineTriangleMeshPolicy, CartesianMeshCellsV2, GeometryDecoderLimits,

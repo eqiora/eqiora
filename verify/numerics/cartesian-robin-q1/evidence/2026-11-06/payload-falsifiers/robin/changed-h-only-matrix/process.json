@@ -1,0 +1,24 @@
+{
+  "case": "robin",
+  "defect": "changed-h-only-matrix",
+  "pid": 515575,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-matrix/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/robin/changed-h-only-matrix/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "full_operator",
+  "required_true": null,
+  "input_sha256": "121f0eceeb7dc02ff64696f5e8eb60351ef3569a22c0c3053082ca8a1a7a7b56",
+  "report_sha256": "2a6cef9c98b2a0a745c85daedb1d2b6ef7d2d18a2779238b1de93f6925c5b44b",
+  "base_native_input_sha256": "42d2a0a523d9808a9d3254d8009978dc66b47da90b769fbb6d696a87caeb9a49",
+  "accepted": false,
+  "status": "expected-rejection"
+}

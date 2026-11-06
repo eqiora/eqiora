@@ -136,6 +136,7 @@ fn resolve_with_solve(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
 }
 

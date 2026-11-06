@@ -27,6 +27,7 @@ struct Sample<S: Coefficient> {
 pub(crate) struct PreparedRegionFacet<S: Coefficient, P: Projection<S> = Native> {
     domain: RawId,
     parent: AffineGeometryMap,
+    assembly_points: Option<usize>,
     fields: Vec<RegionFieldLayout>,
     row: usize,
     columns: Vec<usize>,
@@ -50,39 +51,82 @@ impl<S: Coefficient> BoundRegionForm<S> {
     pub(crate) fn natural_facet_quadrature(
         &self,
         field: RawId,
+        datum_degree: Option<usize>,
     ) -> Result<QuadratureRule, Diagnostic> {
-        let degree = self.natural_trace_degree(field)?;
         let dimension = self.form.dimension - 1;
         if dimension == 0 {
             return Ok(QuadratureRule::point());
         }
+        let minimum = self.minimum_natural_gauss_points(field, datum_degree)?;
+        let points = self.assembly_points.unwrap_or(minimum);
+        if points < minimum {
+            return Err(invalid(
+                "assembly quadrature underintegrates the prescribed polynomial facet datum",
+            ));
+        }
         if self.reference.family() == ReferenceCellFamily::Hypercube {
-            QuadratureRule::tensor_product_gauss_legendre(
-                dimension,
-                2.max((degree + 1).div_ceil(2)),
-            )
+            QuadratureRule::tensor_product_gauss_legendre(dimension, points)
         } else {
-            eqiora_meshing::simplex_duffy_gauss_legendre(
-                dimension,
-                3.max((degree + dimension).div_ceil(2)),
-            )
+            eqiora_meshing::simplex_duffy_gauss_legendre(dimension, points)
         }
     }
 
-    fn natural_trace_degree(&self, field: RawId) -> Result<usize, Diagnostic> {
+    pub(crate) fn minimum_natural_gauss_points(
+        &self,
+        field: RawId,
+        datum_degree: Option<usize>,
+    ) -> Result<usize, Diagnostic> {
+        let degree = self.natural_trace_degree(field, datum_degree)?;
+        let dimension = self.form.dimension - 1;
+        Ok(
+            if self.reference.family() == ReferenceCellFamily::Hypercube {
+                2.max((degree + 1).div_ceil(2))
+            } else {
+                3.max((degree + dimension).div_ceil(2))
+            },
+        )
+    }
+
+    pub(super) fn natural_trace_degree(
+        &self,
+        field: RawId,
+        datum_degree: Option<usize>,
+    ) -> Result<usize, Diagnostic> {
         let row = self
             .form
             .rows
             .iter()
             .find(|row| row.tested == field)
             .ok_or_else(|| invalid("natural flux has a foreign tested Field"))?;
-        Ok(if row.dyadics.is_empty() {
+        let trace_basis = |field| {
+            let layout = self
+                .fields
+                .iter()
+                .find(|layout| layout.field == field)
+                .expect("bound trace Field");
+            if layout.space.family() == eqiora_realization::SpaceFamily::SimplexP1Bubble {
+                1
+            } else {
+                self.field_basis_degree(field)
+            }
+        };
+        let basis = trace_basis(field);
+        let data = datum_degree.unwrap_or(0).saturating_add(basis);
+        let nonlinear = row
+            .dyadics
+            .iter()
+            .map(|term| basis + 2 * trace_basis(term.field))
+            .max()
+            .unwrap_or(0);
+        // Retain the established conservative nonlinear first-order floor.
+        let floor = if row.dyadics.is_empty() {
             0
         } else if self.reference.family() == ReferenceCellFamily::Hypercube {
             3 * (self.form.dimension - 1)
         } else {
             3
-        })
+        };
+        Ok(data.max(nonlinear).max(floor))
     }
 
     pub(crate) fn prepare_natural_facet(
@@ -92,8 +136,22 @@ impl<S: Coefficient> BoundRegionForm<S> {
         facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
         rule: &QuadratureRule,
         datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        datum_degree: Option<usize>,
     ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
-        let affine = self.evaluate_natural_facet(field, cell, facet, rule, datum)?;
+        self.prepare_affine_facet(field, cell, facet, rule, datum, (datum_degree, None))
+    }
+
+    pub(crate) fn prepare_affine_facet(
+        &self,
+        field: RawId,
+        cell: &AffineGeometryMap,
+        facet: (&AffineGeometryMap, EntityIncidence, &[usize]),
+        rule: &QuadratureRule,
+        datum: impl Fn(&[f64], &[f64]) -> Result<Vec<S>, Diagnostic>,
+        (datum_degree, robin): (Option<usize>, Option<&super::Data<S>>),
+    ) -> Result<PreparedRegionFacet<S>, Diagnostic> {
+        let affine =
+            self.evaluate_affine_facet(field, cell, facet, rule, datum, (datum_degree, robin))?;
         let (facet, incidence, parent_vertices) = facet;
         let dimension = self.form.dimension;
         let row = self
@@ -126,6 +184,7 @@ impl<S: Coefficient> BoundRegionForm<S> {
         let mut prepared = PreparedRegionFacet {
             domain: self.domain(),
             parent: cell.clone(),
+            assembly_points: self.assembly_points,
             fields: self.fields.clone(),
             row,
             columns,
@@ -157,7 +216,10 @@ impl<S: Coefficient> BoundRegionForm<S> {
         }
         if dimension > 1
             && rule.polynomial_exactness().is_none_or(|order| {
-                order < self.natural_trace_degree(field).expect("validated Field")
+                order
+                    < self
+                        .natural_trace_degree(field, datum_degree)
+                        .expect("validated Field")
             })
         {
             return Err(invalid(
@@ -183,13 +245,12 @@ impl<S: Coefficient> BoundRegionForm<S> {
         prepared.transport_nodes = spaces
             .iter()
             .map(|space| {
-                space
-                    .local_dofs()
-                    .iter()
-                    .map(|dof| dof.entity_dimension() != dimension)
-                    .collect()
+                let trace = space.trace_dofs(incidence.local_ordinal)?;
+                Ok((0..space.local_dofs().len())
+                    .map(|node| trace.contains(&node))
+                    .collect())
             })
-            .collect();
+            .collect::<Result<Vec<_>, Diagnostic>>()?;
         let inverse = cell.inverse_jacobian()?;
         for sample in rule.points() {
             let facet_table = facet_space.tabulate(&sample.coordinates)?;
@@ -263,10 +324,13 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionFacet<S, P> {
         form: &BoundRegionForm<S>,
         geometry: &AffineGeometryMap,
     ) -> Result<(), Diagnostic> {
-        if self.domain != form.domain() || self.fields != form.fields() || &self.parent != geometry
+        if self.domain != form.domain()
+            || self.fields != form.fields()
+            || &self.parent != geometry
+            || self.assembly_points != form.assembly_points
         {
             return Err(invalid(
-                "prepared natural facet differs from its exact parent geometry or Field binding",
+                "prepared natural facet differs from its exact parent geometry, Field binding or assembly quadrature",
             ));
         }
         Ok(())
@@ -276,16 +340,6 @@ impl<S: Coefficient, P: Projection<S>> PreparedRegionFacet<S, P> {
 impl<S: Coefficient> PreparedRegionFacet<S> {
     /// Reuse the physical trace samples and project only their numerical storage.
     pub(crate) fn project<P: Projection<S>>(self) -> Result<PreparedRegionFacet<S, P>, Diagnostic> {
-        if self
-            .affine
-            .matrix()
-            .iter()
-            .any(|value| *value != <S as From<f64>>::from(0.))
-        {
-            return Err(invalid(
-                "natural facet projection requires a load without a trial matrix",
-            ));
-        }
         let mut rhs = Vec::new();
         for field in &self.fields {
             rhs.extend(super::coordinates::values::<S, P>(
@@ -293,19 +347,35 @@ impl<S: Coefficient> PreparedRegionFacet<S> {
                 &self.affine.rhs()[field.range.clone()],
             )?);
         }
-        let entries = rhs
-            .len()
-            .checked_mul(rhs.len())
-            .ok_or_else(|| invalid("projected facet matrix dimensions overflow"))?;
-        let affine = LocalContribution::new(
-            rhs.len(),
-            rhs.len(),
-            vec![<P::Scalar as From<f64>>::from(0.); entries],
-            rhs,
-        )?;
+        let count = rhs.len();
+        let source_count = self.affine.rows();
+        let mut matrix = vec![<P::Scalar as From<f64>>::from(0.); count * count];
+        let ranges = P::ranges(&self.fields)?;
+        for (r, row) in self.fields.iter().enumerate() {
+            let rw = P::width(&row.value_type)?;
+            for (c, column) in self.fields.iter().enumerate() {
+                let cw = P::width(&column.value_type)?;
+                for a in 0..row.range.len() {
+                    for b in 0..column.range.len() {
+                        let value = self.affine.matrix()
+                            [(row.range.start + a) * source_count + column.range.start + b];
+                        for i in 0..rw {
+                            for j in 0..cw {
+                                matrix[(ranges[r].start + a * rw + i) * count
+                                    + ranges[c].start
+                                    + b * cw
+                                    + j] = P::component(value * P::direction(j), i);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let affine = LocalContribution::new(count, count, matrix, rhs)?;
         Ok(PreparedRegionFacet {
             domain: self.domain,
             parent: self.parent,
+            assembly_points: self.assembly_points,
             coordinates: P::ranges(&self.fields)?,
             fields: self.fields,
             row: self.row,

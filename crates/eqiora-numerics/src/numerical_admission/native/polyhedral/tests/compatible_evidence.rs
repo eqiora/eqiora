@@ -89,6 +89,7 @@ fn profile<S: Coefficient + Send + Sync + std::iter::Sum>(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let plan = plan.as_spatial().unwrap();
@@ -109,6 +110,7 @@ fn profile<S: Coefficient + Send + Sync + std::iter::Sum>(
             envelope,
             &equations.discretizations(space, None).unwrap(),
             &eqiora_realization::SystemScaling::Dimensional,
+            None,
         )
         .unwrap();
     assert!(natural.is_empty());

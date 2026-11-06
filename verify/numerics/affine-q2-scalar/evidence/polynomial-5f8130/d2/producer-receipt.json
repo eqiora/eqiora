@@ -1,0 +1,175 @@
+{
+  "authored_source_sha256": "62a4430f3eb76adb520f6e3629f86887ea4eb73c6c0632963fe7dc3814cadafd",
+  "coefficient_associations": [
+    "vertex",
+    "edge",
+    "cell"
+  ],
+  "coefficient_entities": [
+    [
+      0,
+      0
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      2
+    ],
+    [
+      0,
+      3
+    ],
+    [
+      0,
+      4
+    ],
+    [
+      0,
+      5
+    ],
+    [
+      0,
+      6
+    ],
+    [
+      0,
+      7
+    ],
+    [
+      0,
+      8
+    ],
+    [
+      1,
+      0
+    ],
+    [
+      1,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      1,
+      3
+    ],
+    [
+      1,
+      4
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      1,
+      6
+    ],
+    [
+      1,
+      7
+    ],
+    [
+      1,
+      8
+    ],
+    [
+      1,
+      9
+    ],
+    [
+      1,
+      10
+    ],
+    [
+      1,
+      11
+    ],
+    [
+      2,
+      0
+    ],
+    [
+      2,
+      1
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      2,
+      3
+    ]
+  ],
+  "effective_quadrature": {
+    "kind": "gauss-legendre",
+    "points_per_axis": 4
+  },
+  "field_id": "7F23FCERGD593N3YF05DCB4R78",
+  "mesh_digest": "b4acafb62816bf9bc25fc8b3d93551cf6574b4776ac14480fc76eec6061b1844",
+  "mesh_sha256": "533f7b0a4b363cbde05538c2f1c00d4d4adb5456f1566e3e3746a6a78a12a55e",
+  "model_digest": "adb325cf466aba5bb9722e5edf31becf1c47094a570832bd1534cc4a724f4cbf",
+  "model_sha256": "f13e63e788e81b81268ce8757195f531d9c95a1ed8d97746d1cf24560e97e5a5",
+  "native_executable_sha256": "29dbc988d36392654970e4e3a883b11286607dded45c4726e89045ef581ca7fa",
+  "ordinary_solves": 1,
+  "physical_reaction_scale_binary64_hex": "0x1.0000000000000p+0",
+  "physical_reaction_units_exponents": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "plan_identity": "d45f77f1b55a6ae0d2e7765f590442fe3ff8ed17b8730e43811a7617175d4bf3",
+  "plan_reopens": 1,
+  "plan_sha256": "a0be9ad3b4902bf183c7bde7fd258f10e0e19bad536f6f8198689e9d7e076185",
+  "polynomial_input_sha256": "dedc25ab0867495f0de5a3964c41577b9ba39c48fa27fa96f08b7020c0300c2a",
+  "producer_source_sha256": "87bb9d52ed8e474e9918ecceb4d0f5e885cdddaccf00d06d278fe22799bae5ac",
+  "reaction_reconstructions": 1,
+  "rejected_tampered_reopens": 4,
+  "result_identity": "f28e211be555e9aa5c386b50b9275c5db5b356be9550d97f968cdb412f072371",
+  "result_reopens": 1,
+  "result_sha256": "c138a3448b906f45111898bb844658f86d5145a35c6c144f24e675ad16dbc52a",
+  "schema": 1,
+  "status": "exported-not-yet-compared",
+  "upper_reaction_entities": [
+    [
+      0,
+      6,
+      0,
+      0
+    ],
+    [
+      0,
+      7,
+      0,
+      0
+    ],
+    [
+      0,
+      8,
+      0,
+      0
+    ],
+    [
+      1,
+      10,
+      0,
+      0
+    ],
+    [
+      1,
+      11,
+      0,
+      0
+    ]
+  ]
+}

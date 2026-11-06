@@ -996,6 +996,42 @@ the shared mesh budgets. A basis remains Realization/Field meaning, so the
 mesh artifact says `hypercube`, not Q1.
 No Cartesian index enters a local operator or assembler.
 
+Quadratic nodal spaces use the existing `DiscreteSpace`, cell binding and global
+`RegionDofMap`. P2 triangles/tetrahedra have vertex and edge-midpoint values
+(6/10); full Q2 quads/hexes have vertex, edge, face where present, and cell-center
+values (9/27). Their canonical order is entity dimension, reference ordinal,
+slot, then component. Each nodal entity has one slot and orientation sign +1.
+Cube permutations must preserve topology. Solution interpolation points remain
+owned by the space; they are never inserted as mesh vertices. P2 uses
+`lambda_i(2 lambda_i-1)` and `4 lambda_i lambda_j`; Q2 tensors the three interval
+polynomials `xi(xi-1)/2`, `1-xi^2`, `xi(xi+1)/2`. Physical gradients use the
+existing inverse-transpose affine map. A facet restricts that parent basis through
+its authenticated embedding and includes every facet-closure DOF. It excludes
+interior nodal values and hierarchical MINI bubbles. These contracts follow
+[DefElement Lagrange](https://defelement.org/elements/lagrange.html) and
+[Basix orientation conventions](https://docs.fenicsproject.org/basix/v0.10.0.post0/python/demo/demo_dof_transformations.py.html).
+
+The ordinary quadratic policy currently admits static linear scalar diffusion on
+affine Cartesian quads/hexes in 2D/3D, with real or complex coefficients. It uses
+the same Plan, compiler, assembly, solver and Result codec as first-order fields.
+Result blocks retain all entity associations; a Q2 cell-center value is `Cell`,
+not `CellBubble`. Unsupported sampling and derived observations reject rather
+than truncate to vertices. Ordinary P2, vector quadratic spaces, curved geometry,
+nonlinear/transient Q2 and Taylor--Hood remain separate work.
+
+Assembly quadrature is an explicit `resolve` input using the existing realization
+policy. One selector normalizes volume and authenticated natural-facet polynomial
+minima. Tensor Q2 defaults to at least four Gauss points per axis; this accuracy
+choice does not guarantee nonpolynomial accuracy. An explicit rule may use the
+mathematical minimum (three for constant-coefficient full Q2 diffusion/mass),
+but insufficient polynomial rules and incompatible providers/families reject.
+The usual Q1 constant-data default remains two, and simplex rules retain their
+three-point floor. Higher-degree natural data can raise the common rule, including
+its volume rule; the former separate facet-only increase is no longer retained.
+Canonical Plan v28 persists the effective policy and replay consumes that same
+choice, including facet preparation. Geometry remains affine; no polynomial
+exactness is inferred for rational nonaffine metrics.
+
 The first canonical spatial vertical slice precedes that factorization:
 
 ```text

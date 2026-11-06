@@ -1,0 +1,3192 @@
+{
+  "candidate_sha256": "9e3a12644bbc09a5914e651d6740baf9a4e9033e6538e116aa4296df45aa3746",
+  "coefficient_entities": [
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "0"
+      ],
+      "entity": [
+        0,
+        0
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        1
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        2
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        3
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        4
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        5
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        6
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        7
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0",
+        "3"
+      ],
+      "entity": [
+        0,
+        8
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "0"
+      ],
+      "entity": [
+        0,
+        9
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        10
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        11
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        12
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        13
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        14
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        15
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        16
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.25",
+        "3"
+      ],
+      "entity": [
+        0,
+        17
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "0"
+      ],
+      "entity": [
+        0,
+        18
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        19
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        20
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        21
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        22
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        23
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        24
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        25
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.5",
+        "3"
+      ],
+      "entity": [
+        0,
+        26
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "0"
+      ],
+      "entity": [
+        0,
+        27
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        28
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        29
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        30
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        31
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        32
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        33
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        34
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "0.75",
+        "3"
+      ],
+      "entity": [
+        0,
+        35
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "0"
+      ],
+      "entity": [
+        0,
+        36
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        37
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        38
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        39
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        40
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        41
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        42
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        43
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1",
+        "3"
+      ],
+      "entity": [
+        0,
+        44
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "0"
+      ],
+      "entity": [
+        0,
+        45
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        46
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        47
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        48
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        49
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        50
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        51
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        52
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.25",
+        "3"
+      ],
+      "entity": [
+        0,
+        53
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "0"
+      ],
+      "entity": [
+        0,
+        54
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        55
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        56
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        57
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        58
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        59
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        60
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        61
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.5",
+        "3"
+      ],
+      "entity": [
+        0,
+        62
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "0"
+      ],
+      "entity": [
+        0,
+        63
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        64
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        65
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        66
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        67
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        68
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        69
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        70
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "1.75",
+        "3"
+      ],
+      "entity": [
+        0,
+        71
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "0"
+      ],
+      "entity": [
+        0,
+        72
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "0.375"
+      ],
+      "entity": [
+        0,
+        73
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "0.75"
+      ],
+      "entity": [
+        0,
+        74
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "1.125"
+      ],
+      "entity": [
+        0,
+        75
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "1.5"
+      ],
+      "entity": [
+        0,
+        76
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "1.875"
+      ],
+      "entity": [
+        0,
+        77
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "2.25"
+      ],
+      "entity": [
+        0,
+        78
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "2.625"
+      ],
+      "entity": [
+        0,
+        79
+      ]
+    },
+    {
+      "association": "vertex",
+      "coordinates_m": [
+        "2",
+        "3"
+      ],
+      "entity": [
+        0,
+        80
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "0"
+      ],
+      "entity": [
+        1,
+        0
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        1
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        2
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        3
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        4
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        5
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        6
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        7
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.125",
+        "3"
+      ],
+      "entity": [
+        1,
+        8
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "0"
+      ],
+      "entity": [
+        1,
+        9
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        10
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        11
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        12
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        13
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        14
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        15
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        16
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.375",
+        "3"
+      ],
+      "entity": [
+        1,
+        17
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "0"
+      ],
+      "entity": [
+        1,
+        18
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        19
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        20
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        21
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        22
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        23
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        24
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        25
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.625",
+        "3"
+      ],
+      "entity": [
+        1,
+        26
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "0"
+      ],
+      "entity": [
+        1,
+        27
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        28
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        29
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        30
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        31
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        32
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        33
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        34
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.875",
+        "3"
+      ],
+      "entity": [
+        1,
+        35
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "0"
+      ],
+      "entity": [
+        1,
+        36
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        37
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        38
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        39
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        40
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        41
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        42
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        43
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.125",
+        "3"
+      ],
+      "entity": [
+        1,
+        44
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "0"
+      ],
+      "entity": [
+        1,
+        45
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        46
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        47
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        48
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        49
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        50
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        51
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        52
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.375",
+        "3"
+      ],
+      "entity": [
+        1,
+        53
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "0"
+      ],
+      "entity": [
+        1,
+        54
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        55
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        56
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        57
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        58
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        59
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        60
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        61
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.625",
+        "3"
+      ],
+      "entity": [
+        1,
+        62
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "0"
+      ],
+      "entity": [
+        1,
+        63
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "0.375"
+      ],
+      "entity": [
+        1,
+        64
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "0.75"
+      ],
+      "entity": [
+        1,
+        65
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "1.125"
+      ],
+      "entity": [
+        1,
+        66
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "1.5"
+      ],
+      "entity": [
+        1,
+        67
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "1.875"
+      ],
+      "entity": [
+        1,
+        68
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "2.25"
+      ],
+      "entity": [
+        1,
+        69
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "2.625"
+      ],
+      "entity": [
+        1,
+        70
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.875",
+        "3"
+      ],
+      "entity": [
+        1,
+        71
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        72
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        73
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        74
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        75
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        76
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        77
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        78
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        79
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        80
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        81
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        82
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        83
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        84
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        85
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        86
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.25",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        87
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        88
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        89
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        90
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        91
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        92
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        93
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        94
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.5",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        95
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        96
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        97
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        98
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        99
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        100
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        101
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        102
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "0.75",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        103
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        104
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        105
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        106
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        107
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        108
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        109
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        110
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        111
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        112
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        113
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        114
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        115
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        116
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        117
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        118
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.25",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        119
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        120
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        121
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        122
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        123
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        124
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        125
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        126
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.5",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        127
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        128
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        129
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        130
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        131
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        132
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        133
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        134
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "1.75",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        135
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0.1875"
+      ],
+      "entity": [
+        1,
+        136
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0.5625"
+      ],
+      "entity": [
+        1,
+        137
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "0.9375"
+      ],
+      "entity": [
+        1,
+        138
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "1.3125"
+      ],
+      "entity": [
+        1,
+        139
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "1.6875"
+      ],
+      "entity": [
+        1,
+        140
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "2.0625"
+      ],
+      "entity": [
+        1,
+        141
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "2.4375"
+      ],
+      "entity": [
+        1,
+        142
+      ]
+    },
+    {
+      "association": "edge",
+      "coordinates_m": [
+        "2",
+        "2.8125"
+      ],
+      "entity": [
+        1,
+        143
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        0
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        1
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        2
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        3
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        4
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        5
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        6
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.125",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        7
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        8
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        9
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        10
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        11
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        12
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        13
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        14
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.375",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        15
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        16
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        17
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        18
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        19
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        20
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        21
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        22
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.625",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        23
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        24
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        25
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        26
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        27
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        28
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        29
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        30
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "0.875",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        31
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        32
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        33
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        34
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        35
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        36
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        37
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        38
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.125",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        39
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        40
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        41
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        42
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        43
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        44
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        45
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        46
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.375",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        47
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        48
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        49
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        50
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        51
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        52
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        53
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        54
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.625",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        55
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "0.1875"
+      ],
+      "entity": [
+        2,
+        56
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "0.5625"
+      ],
+      "entity": [
+        2,
+        57
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "0.9375"
+      ],
+      "entity": [
+        2,
+        58
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "1.3125"
+      ],
+      "entity": [
+        2,
+        59
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "1.6875"
+      ],
+      "entity": [
+        2,
+        60
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "2.0625"
+      ],
+      "entity": [
+        2,
+        61
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "2.4375"
+      ],
+      "entity": [
+        2,
+        62
+      ]
+    },
+    {
+      "association": "cell",
+      "coordinates_m": [
+        "1.875",
+        "2.8125"
+      ],
+      "entity": [
+        2,
+        63
+      ]
+    }
+  ],
+  "mesh_digest": "2205bf2c0df5523a58cb0e9ca33597aecfb5e11770a4a3ba8c02e95c88259f71",
+  "mesh_sha256": "c5531421bb5213951aa73b509437dd9d975730eb4ccfca6dfb8e4e76e5ded856",
+  "model_digest": "ae854d5c7a1126cc7b45e8262c3f22b60b83507961bb9cc1e456b75b3b8245f8",
+  "plan_identity": "e5ebb723f1103219c26673747ba31f895e93ffd46f068c804a42173e32b76dd6",
+  "plan_sha256": "b8c3aa4f22c3bb6e6fb81943cefa48acd6cf1436eb5ebce76cd90cfb798ccf78",
+  "result_sha256": "68cfbed1f374c2e7d76c6a4c71ae022e0663b86a7c0384f02d1fc6b979717502",
+  "run_request_key": "3f56a93a1a92f8f3876ecfabc09752b28d8d7900bf9743b26dd707169204240d",
+  "schema": 1
+}

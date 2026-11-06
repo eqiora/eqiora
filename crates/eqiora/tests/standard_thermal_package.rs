@@ -173,6 +173,7 @@ fn resolve_fixture(
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .map_err(|error| error.to_string())
 }

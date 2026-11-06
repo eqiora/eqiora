@@ -71,6 +71,7 @@ impl<S: DifferentiationScalar> PreparedPoint<'_, S> {
                     &self.plan.admission.discretizations,
                     forms,
                     |_, _, value| Ok(Some(value)),
+                    self.plan.admission.assembly_quadrature(),
                 )?
             };
         if !partial_mapping.has_same_coordinate_layout(mapping) {

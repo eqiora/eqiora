@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "status": "metadata-audited-no-PDE-solve-no-scientific-acceptance",
+  "attempt1_ordinary_public_runs": 1,
+  "attempt1_reference_comparisons": 0,
+  "actual_producer_exit": 101,
+  "immutable_attempt_files": {
+    "case-attempt.json": "00756fb915e0bdab3793b52e3f3b5e25720e0b4f95470feedbd6fde79aaeb2e9",
+    "model.eqi": "e67a2b6458482c785a506e641733e8478c93c17b462b173e8880b5add41104b3",
+    "model.json": "37ca5b908b11b15e2b754b139f94162097651ec27b1b72fa922234708d28d8db",
+    "mesh.json": "0db6902cf51cf86d159c40c8ad9c6773ae0e420db00dc3ff69997abc7c189187",
+    "plan.json": "faeae75c7ca2c62ecde5078e4e739659a04528e1edb34722ad511204be29dd6d",
+    "result.json": "7ecee8b0f447cda0737dbc5aa7b4a54f96ff5b016522844edc036340507bc296"
+  },
+  "plan_identity": "753b554ea92e5449ce3b604549d8b80399cb380c67b5380a04aff4eec5b9cad5",
+  "result_identity": "91854ff17e5dd22619f035c421ebcfb7fc63d7c2a70f110432ffd2f20cd568ca",
+  "observed_metadata": {
+    "field_id": "14M24TKFDWGNJSEA7Q8Y61X8BV",
+    "space": "continuous-lagrange-p1",
+    "association": "vertex",
+    "logical_shape": [
+      3,
+      3
+    ],
+    "coefficient_count": 9,
+    "real_scalar_units": "K",
+    "mesh_dimension": 2,
+    "axis_lengths": [
+      3,
+      3
+    ],
+    "vertex_order": "last-axis-fastest",
+    "plan_result_binding": true,
+    "embedded_model_mesh_match": true,
+    "all_coefficients_finite_and_binary64_hex_roundtrip": true
+  },
+  "source_contract_review": {
+    "logical_shape": "common_result/spatial.rs:185-232 Q1 uses field_support; scalar/support.rs:59-110 nodal extent=end-start+1; existing plans/weak_evidence/curl.rs:117 asserts [3,3]",
+    "coefficient_order": "scalar.rs:598 field_coefficient_entities uses the same field_support entity order; scalar/support.rs sorts vertex entities; scalar/fields.rs:161 physical_fields consumes exact FieldDof coefficient order",
+    "reaction_selection": "region_assembly/reactions/interfaces/projection.rs:24 selects exactly mapping.free_dof(key).is_none(); only left3 are essential in this authored source",
+    "reaction_units": "form_compiler/region/binding.rs:193 physical_dual_scale is inverse row multiplier and residual units*area/testbasis; heat W/m3* m2 gives W/m; single real K Field and SI scales1 checked in producer",
+    "reaction_values": "region_assembly/reactions/interfaces.rs:31 physical_value scales normalized weak action; scalar/reactions.rs:6 recovers from the same Plan and accepted physical values; NO reaction reconstruction was executed by this audit",
+    "reference_export": "independent robin.py decode requires all81A/9b/9coeff/3left actions with strict x-major/y-fast order and physical_outward_heat=-weak_reaction; shape is not a scientific tolerance",
+    "binary64_export": "shared tests/artifact_capture.rs encodes finite exact binary64; pure existing helper test executed separately below",
+    "remaining_limits": "No captured-operator file or recovered reaction file survived attempt1; this audit does not substitute reassembly, qualify a full reference payload, or establish numerical acceptance."
+  },
+  "source_contract_hashes": {
+    "crates/eqiora-numerics/src/common_result/spatial.rs": "43df5ffa6daf54eb97e7f6584d616a699a10f152921f011b322d1bf7a65eb08a",
+    "crates/eqiora-numerics/src/numerical_admission/scalar/support.rs": "16a6dfecff40d1ec0b6ff5d5dc1be71327d07a2c880f5f28fe80fbd1a27cdb84",
+    "crates/eqiora-numerics/src/numerical_admission/scalar/fields.rs": "95297969777a44f540e38b203406cf3ee57faee14e8a694bd946034113394873",
+    "crates/eqiora-numerics/src/numerical_admission/scalar/reactions.rs": "f4c5c0cf031db839e1a524cc812bab3f9d36b5513b19e8a87fbcf27ff4912b40",
+    "crates/eqiora-numerics/src/region_assembly/reactions/interfaces.rs": "c10b5727cc6f0226bfedb6e1bf891c12000ccdd75e99d8512e8b1b84d1b8d4ab",
+    "crates/eqiora-numerics/src/region_assembly/reactions/interfaces/projection.rs": "752b16139ec5ebaead1fe45d01cf4593135c8d7097532eead52ba7149a779642",
+    "crates/eqiora-numerics/src/form_compiler/region/binding.rs": "715222b7440938fb41980581aa33f499aca416eb5a09db237c59a779abf944c5",
+    "crates/eqiora-numerics/src/numerical_admission/tests/artifact_capture.rs": "8d6a9be63fa6c4813aeec86e3082759849d0bf35ab6b55fdc26e743e1e65b994"
+  },
+  "reaction_metadata_audit": "source-only; actual reactions were not reached or reconstructed",
+  "binary64_pure_command": [
+    "taskset",
+    "-c",
+    "48-51",
+    "/data/nk523/.cache/eqiora/targets/scalar-robin-boundary/debug/deps/eqiora_numerics-83b3b6dd7399df9d",
+    "--exact",
+    "numerical_admission::tests::artifact_capture::binary64_hex_preserves_exact_finite_bits"
+  ],
+  "binary64_pure_exit": 0,
+  "audit_script_sha256": "8ed9e3391e0a81a9afe273f369f79c470e88a99236d60bc11a3c89fc5def72b7"
+}

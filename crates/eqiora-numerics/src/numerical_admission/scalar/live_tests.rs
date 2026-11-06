@@ -1,4 +1,5 @@
 use super::*;
+pub(in crate::numerical_admission) mod capture;
 use crate::common_result::evidence::{CommonSolveEvidence, CommonSolveHistory};
 use eqiora_solver::REFERENCE_LINEAR_SOLVER;
 

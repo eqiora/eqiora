@@ -93,6 +93,7 @@ fn check_planar_curl_pairing(strong_operator: &str, complex: bool) {
             &REFERENCE_LINEAR_SOLVER,
             None,
             Some(projection),
+            None,
         )
     };
     let plan = replay_plan(

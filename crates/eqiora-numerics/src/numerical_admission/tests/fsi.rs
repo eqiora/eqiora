@@ -65,6 +65,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             &ResolveOnlyBackend,
             None,
             None,
+            None,
         )
         .unwrap();
         replay_plan(resolved, &ResolveOnlyBackend)
@@ -199,6 +200,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         &ResolveOnlyBackend,
         None,
         None,
+        None,
     )
     .unwrap();
     let substituted = replay_plan(substituted, &ResolveOnlyBackend);
@@ -255,6 +257,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             &FsiPlanningBackend,
             None,
             None,
+            None,
         )
         .unwrap();
         assert_eq!(ranked.solver_planning_objective(), Some(objective));
@@ -285,6 +288,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
         None,
         Some(temporal.clone()),
         &FsiPlanningBackend,
+        None,
         None,
         None,
     )
@@ -455,6 +459,7 @@ pub(super) fn common_fsi_resolves_exact_scopes_initializes_and_restarts_without_
             &ResolveOnlyBackend,
             None,
             None,
+            None
         )
         .is_err()
     );

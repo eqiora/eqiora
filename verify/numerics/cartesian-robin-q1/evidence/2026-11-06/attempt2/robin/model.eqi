@@ -1,0 +1,15 @@
+public component Robin(
+      support body:volume(ambient_dimension=2),
+      support left:boundary(parent=body),support right:boundary(parent=body),
+      support bottom:boundary(parent=body),support top:boundary(parent=body)
+    ) {
+      parameter k:W/(m*K)=3[W/(m*K)];
+      parameter h:W/(m^2*K)=2[W/(m^2*K)];
+      parameter ambient:K=320[K];
+      variable temperature:K on body in smooth;
+      law heat on body { flux -k*grad(temperature);source 0[W/m^3]; }
+      relation fixed on left {trace(temperature)=280[K];}
+      relation transfer on right {normal(k*grad(temperature))+h*trace(temperature)=h*ambient;}
+      relation insulated_bottom on bottom {normal(k*grad(temperature))=0[W/m^2];}
+      relation insulated_top on top {normal(k*grad(temperature))=0[W/m^2];}
+    }

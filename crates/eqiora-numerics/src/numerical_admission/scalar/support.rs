@@ -34,6 +34,27 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
                 .any(|(id, _)| *id == field)
         })
         .ok_or_else(|| invalid("Field absent from exact Region inventory"))?;
+    if matches!(space.family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2) {
+        let entities = cartesian_topology(equations, mesh, field, space)?;
+        let ty = region
+            .form
+            .represented_fields()
+            .into_iter()
+            .find(|(id, _)| *id == field)
+            .ok_or_else(|| invalid("quadratic Field absent from Region"))?
+            .1;
+        let mut shape = vec![entities.len()];
+        shape.extend(
+            ty.shape()
+                .extents()
+                .iter()
+                .map(|extent| usize::try_from(extent.get()).expect("portable Field extent")),
+        );
+        return Ok((
+            shape,
+            entities.into_iter().map(|entity| entity.index()).collect(),
+        ));
+    }
     let mut shape = Vec::new();
     for (axis, bounds) in region.cartesian()?.bounds.iter().enumerate() {
         let coordinates = mesh.axis_coordinates(axis).expect("axis");
@@ -83,6 +104,58 @@ pub(super) fn field_support<S: crate::spatial_expression::Coefficient>(
         }
     }
     Ok((shape, entities.into_iter().collect()))
+}
+
+/// Complete coefficient topology uses the same local-to-global binding as assembly.
+pub(super) fn cartesian_topology<S: crate::spatial_expression::Coefficient>(
+    equations: &ExecutableSpatialEquations<S>,
+    mesh: &eqiora_meshing::CartesianMesh,
+    field: eqiora_core::RawId,
+    selected: Space,
+) -> Result<Vec<eqiora_meshing::MeshEntity>, Diagnostic> {
+    let domain = equations
+        .regions
+        .iter()
+        .find(|region| {
+            region
+                .form
+                .represented_fields()
+                .iter()
+                .any(|(id, _)| *id == field)
+        })
+        .ok_or_else(|| invalid("coefficient Field absent from exact Region"))?
+        .form
+        .domain();
+    let dimension = mesh.topological_dimension();
+    let space = crate::discrete_space::DiscreteSpace::new(
+        selected,
+        eqiora_meshing::ReferenceCell::hypercube(dimension)?,
+    )?;
+    let cells = equations
+        .cell_domains(mesh)?
+        .iter()
+        .enumerate()
+        .filter(|(_, owner)| **owner == domain)
+        .map(|(index, _)| eqiora_meshing::MeshEntity::new(dimension, index))
+        .collect::<Vec<_>>();
+    bound_entities(mesh, &space, &cells)
+}
+
+fn bound_entities(
+    mesh: &dyn eqiora_meshing::MeshTopology,
+    space: &crate::discrete_space::DiscreteSpace,
+    cells: &[eqiora_meshing::MeshEntity],
+) -> Result<Vec<eqiora_meshing::MeshEntity>, Diagnostic> {
+    let mut entities = BTreeSet::new();
+    for &cell in cells {
+        entities.extend(
+            space
+                .bind_cell(mesh, cell)?
+                .into_iter()
+                .map(|(entity, _)| entity),
+        );
+    }
+    Ok(entities.into_iter().collect())
 }
 
 pub(super) fn simplicial_support<S: crate::spatial_expression::Coefficient>(
@@ -170,16 +243,7 @@ pub(super) fn simplicial_topology<S: crate::spatial_expression::Coefficient>(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
-    let mut entities = BTreeSet::new();
-    for &cell in &cells {
-        entities.extend(
-            space
-                .bind_cell(mesh.mesh(), cell)?
-                .into_iter()
-                .map(|(entity, _)| entity),
-        );
-    }
-    let entities = entities.into_iter().collect();
+    let entities = bound_entities(mesh.mesh(), &space, &cells)?;
     Ok((entities, cells))
 }
 

@@ -125,7 +125,7 @@ fn resolve_constraint_source(
         &REFERENCE_LINEAR_SOLVER,
         None,
         projection.as_ref(),
-    )
+     None)
     .unwrap_or_else(|error| panic!("{spatial:?}, mixed={mixed}, dynamic={dynamic}, constraint={constraint}, data={data}: {error}"));
     let resolved = policy::with_policy(
         &base,

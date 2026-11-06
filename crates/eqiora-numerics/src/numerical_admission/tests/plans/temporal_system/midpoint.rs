@@ -257,6 +257,7 @@ fn a_failed_nonlinear_midpoint_stage_preserves_the_input() {
         &REFERENCE_LINEAR_SOLVER,
         Some(eqiora_time::ImplicitMidpointTimeBackend::CAPABILITIES),
         None,
+        None,
     )
     .unwrap();
     let plan = resolved.as_spatial().unwrap();

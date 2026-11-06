@@ -195,6 +195,9 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                     | CommonSpatialPolicy::MiniP1 => {
                         Space::continuous_lagrange(std::num::NonZeroU16::MIN)
                     }
+                    CommonSpatialPolicy::Q2 => Space::continuous_lagrange(
+                        std::num::NonZeroU16::new(2).expect("quadratic order"),
+                    ),
                     CommonSpatialPolicy::TetrahedralEdge => Space::tetrahedral_edge(),
                     CommonSpatialPolicy::TetrahedralFace => Space::tetrahedral_face(),
                     CommonSpatialPolicy::CellCentered | CommonSpatialPolicy::CellCenteredTpfa => {
@@ -280,6 +283,25 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
             ));
         }
         let dimension = resources.geometry()?.ambient_dimension();
+        let quadratic = selected.iter().flat_map(|domain| domain.field_spaces())
+            .any(|field| matches!(field.space().family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2));
+        if quadratic
+            && (temporal.is_some()
+                || nonlinear.is_some()
+                || !(2..=3).contains(&dimension)
+                || !matches!(resources, NativeMeshResources::Cartesian { .. })
+                || self.regions.iter().any(|region| {
+                    region
+                        .form
+                        .represented_fields()
+                        .iter()
+                        .any(|(_, ty)| !ty.shape().is_scalar())
+                }))
+        {
+            return Err(invalid(
+                "quadratic execution currently requires static linear scalar Fields on affine Cartesian quadrilateral/hexahedral cells; storage, nonlinear and vector paths are not admitted",
+            ));
+        }
         let reference = match resources {
             NativeMeshResources::Cartesian { .. } => {
                 eqiora_meshing::ReferenceCell::hypercube(dimension)?
@@ -331,7 +353,7 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
                 ));
             }
         }
-        bound.bind_spaces(reference, selected, scaling)?;
+        bound.bind_spaces(reference, selected, scaling, None)?;
         Ok(())
     }
 }

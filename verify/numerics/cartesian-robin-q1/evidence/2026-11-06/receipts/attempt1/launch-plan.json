@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "status": "proposed-not-launched",
+  "head": "5e5ab85a33b8453ac98ac17676fde971495fb35c",
+  "tree": "ad01689de750f40a5a631c91abbf5eb766d1a4fb",
+  "build_receipt": "/data/nk523/.cache/eqiora/robin-campaign/build-5e5ab85a3-1/build-receipt.json",
+  "build_receipt_sha256": "085039878887260452af3b7f0256390b6458f285d750ce38add6878cd2f2405a",
+  "binary": "/data/nk523/.cache/eqiora/targets/scalar-robin-boundary/debug/deps/eqiora_numerics-83b3b6dd7399df9d",
+  "binary_sha256": "e0672eeef171c5ea4e16b49112d809747c0343058f0cfe242cbf8342ca211049",
+  "cpu_affinity": [
+    63
+  ],
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "/data/nk523/.cache/eqiora/targets/scalar-robin-boundary/debug/deps/eqiora_numerics-83b3b6dd7399df9d",
+    "--ignored",
+    "--exact",
+    "numerical_admission::tests::plans::robin::native::ordinary_robin_producer_exports_full_operator_coefficients_and_reactions",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "environment": {
+    "EQIORA_ROBIN_OUTPUT": "/data/nk523/.cache/eqiora/robin-campaign/native-5e5ab85a3-attempt1",
+    "EQIORA_ROBIN_SOURCE_HEAD": "5e5ab85a33b8453ac98ac17676fde971495fb35c",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "VECLIB_MAXIMUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "HIP_VISIBLE_DEVICES": "",
+    "ROCR_VISIBLE_DEVICES": ""
+  },
+  "mpi_launch": false,
+  "conflict_check": "required again immediately before approved launch",
+  "maximum_ordinary_public_runs": 4,
+  "cases": [
+    "insulated",
+    "robin",
+    "changed_h",
+    "changed_geometry_material_cooling"
+  ],
+  "fixed_inputs": [
+    [
+      2,
+      1,
+      3,
+      0,
+      280,
+      320
+    ],
+    [
+      2,
+      1,
+      3,
+      2,
+      280,
+      320
+    ],
+    [
+      2,
+      1,
+      3,
+      5,
+      280,
+      320
+    ],
+    [
+      3,
+      2,
+      2,
+      4,
+      310,
+      280
+    ]
+  ],
+  "solver": {
+    "algorithm": "BiConjugateGradientStabilized",
+    "provider": "reference",
+    "reduction": "Reproducible",
+    "relative_tolerance": 1e-14,
+    "absolute_tolerance": 1e-14,
+    "maximum_iterations": 10000
+  },
+  "space": "Q1",
+  "mesh_cells": [
+    2,
+    2
+  ],
+  "gauss_points_per_axis": 3,
+  "performance_claim": false,
+  "reference_script": "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+  "reference_script_sha256": "4855a307d70a52c76086c1d8bc877697c6c297ad739e5db8b32c14d9ea2b3d3c",
+  "reference_budgets": "unchanged approved protocol; exact rational comparison includes direct recovery R",
+  "failure_policy": "preserve immutable partial attempts and actual outer-process status; no automatic retry or tolerance changes"
+}

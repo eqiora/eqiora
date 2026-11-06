@@ -33,6 +33,7 @@ fn plan(
         &FaerLinearSolver,
         None,
         None,
+        None,
     )
 }
 

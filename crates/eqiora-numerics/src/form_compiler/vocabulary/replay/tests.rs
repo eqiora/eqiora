@@ -214,3 +214,107 @@ fn conservative_replay_binds_every_physical_role_and_closed_rule() {
             .is_err()
     );
 }
+
+#[test]
+fn scalar_robin_replay_retains_all_affine_lineage_and_mixed_flux_obligations() {
+    let field = Id::<kinds::Field>::new();
+    let mut dag = ExprDagBuilder::new();
+    let trace = dag.symbol(SymbolRef::Field(field)).unwrap();
+    let normal = dag.neg(trace).unwrap();
+    let coefficient = dag.add(trace, normal).unwrap();
+    let datum = dag.neg(coefficient).unwrap();
+    for known in [None, Some((datum, false)), Some((datum, true))] {
+        let boundaries = [
+            BoundarySource {
+                domain: Id::<kinds::Domain>::new().erase(),
+                relation: relation(),
+                operator_node: normal,
+                discharge: BoundaryDischarge::AffineRobin {
+                    coefficient,
+                    trace,
+                    datum: known,
+                    normal_negative: false,
+                },
+            },
+            BoundarySource {
+                domain: Id::<kinds::Domain>::new().erase(),
+                relation: relation(),
+                operator_node: trace,
+                discharge: BoundaryDischarge::PrescribedFlux,
+            },
+        ];
+        let source = PrimalGalerkinSource {
+            domain: Id::<kinds::Domain>::new().erase(),
+            unknown: field.erase(),
+            volume_relation: relation(),
+            root: datum,
+            divergence: normal,
+            diffusion_rule: DiffusionRule::Divergence,
+            divergence_sign: WeakSign::Negative,
+            values: &[],
+            conjugate_test: false,
+            boundaries: &boundaries,
+        };
+        let valid = PrimalGalerkinCorrespondence::derive(source);
+        valid.replay(source).unwrap();
+        assert!(
+            valid
+                .formulation
+                .rules
+                .contains(&FormulationRule::TraceOrAffineRobin)
+        );
+        assert!(
+            valid
+                .formulation
+                .rules
+                .contains(&FormulationRule::TraceOrPrescribedFlux)
+        );
+        assert_eq!(valid.entries.len(), if known.is_some() { 8 } else { 7 });
+        for index in 2..valid.entries.len() {
+            let mut missing = valid.clone();
+            missing.entries.remove(index);
+            assert!(missing.replay(source).is_err());
+            let mut corrupted = valid.clone();
+            corrupted.entries[index].source_node = datum;
+            if valid.entries[index].source_node == datum {
+                corrupted.entries[index].source_node = coefficient;
+            }
+            assert!(corrupted.replay(source).is_err());
+            let mut sign = valid.clone();
+            sign.entries[index].sign = match sign.entries[index].sign {
+                WeakSign::Positive => WeakSign::Negative,
+                WeakSign::Negative => WeakSign::Positive,
+            };
+            assert!(sign.replay(source).is_err());
+        }
+        let mut bad_support = boundaries;
+        bad_support[0].domain = Id::<kinds::Domain>::new().erase();
+        assert!(
+            valid
+                .replay(PrimalGalerkinSource {
+                    boundaries: &bad_support,
+                    ..source
+                })
+                .is_err()
+        );
+        let mut bad_relation = boundaries;
+        bad_relation[0].relation = relation();
+        assert!(
+            valid
+                .replay(PrimalGalerkinSource {
+                    boundaries: &bad_relation,
+                    ..source
+                })
+                .is_err()
+        );
+        let mut old_label = valid.clone();
+        old_label.entries[2].rule_id = BoundaryDischarge::PrescribedFlux.rule_id();
+        assert!(old_label.replay(source).is_err());
+        let mut hidden_flux = valid.clone();
+        hidden_flux
+            .formulation
+            .rules
+            .retain(|rule| *rule != FormulationRule::TraceOrPrescribedFlux);
+        assert!(hidden_flux.replay(source).is_err());
+    }
+}

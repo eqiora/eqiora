@@ -66,6 +66,7 @@ fn jacobi_solver_diagonal_admits_ordinary_steady_spatial_execution_and_reopening
             &REFERENCE_LINEAR_SOLVER,
             None,
             None,
+            None,
         )
         .unwrap();
         let plan = resolved.as_spatial().unwrap();

@@ -1,0 +1,25 @@
+{
+  "case": "insulated",
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/native-619725c18-attempt2/insulated/robin-input.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/insulated.json"
+  ],
+  "pid": 478862,
+  "start_utc": "2026-11-06T10:35:34.293692+00:00",
+  "finish_utc": "2026-11-06T10:35:34.420949+00:00",
+  "exit_code": 0,
+  "elapsed_seconds": 0.12725095776841044,
+  "accepted": true,
+  "input_sha256": "0c085cbfd8ccb1901cffc5c893f303eb0a7bc00d0b874f0a8c7af8a914563efd",
+  "captured_operator_sha256": "364f5fc7a476c7959137586df4331790748d5e67245f9f5a953cadc4d4d7ea2b",
+  "result_sha256": "7ecee8b0f447cda0737dbc5aa7b4a54f96ff5b016522844edc036340507bc296",
+  "report": "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/comparisons/insulated.json",
+  "report_sha256": "b3d062b4a64514db2aa4308579d91ced09a06abca310b4c29d2837ba97e3404a"
+}

@@ -2,15 +2,17 @@
 use super::*;
 use sha2::{Digest, Sha256};
 
-pub(super) fn reseal_values(
+pub(super) fn reseal_block_values(
     result: &crate::CommonResult,
     field_index: usize,
+    block_index: usize,
     values: &[f64],
 ) -> Vec<u8> {
     let bytes = result.to_bytes().unwrap();
     let wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let field = &wire["content"]["payload"]["fields"][field_index];
-    let original = &field["blocks"][0]["values"];
+    let block = &field["blocks"][block_index];
+    let original = &block["values"];
     let old = format!("\"values\":{}", serde_json::to_string(original).unwrap());
     let new = format!("\"values\":{}", serde_json::to_string(values).unwrap());
     let mut text = String::from_utf8(bytes).unwrap();
@@ -19,7 +21,12 @@ pub(super) fn reseal_values(
         serde_json::to_string(&field["field_id"]).unwrap()
     );
     let start = text.find(&marker).unwrap();
-    let offset = start + text[start..].find(&old).unwrap();
+    let block_marker = format!(
+        "\"association\":{}",
+        serde_json::to_string(&block["association"]).unwrap()
+    );
+    let block_start = start + text[start..].find(&block_marker).unwrap();
+    let offset = block_start + text[block_start..].find(&old).unwrap();
     text.replace_range(offset..offset + old.len(), &new);
     reseal_content(text, &wire)
 }
@@ -84,7 +91,7 @@ fn static_result_replay_rejects_resealed_equation_and_trace_violations() {
                 assert!((value[1] - 2. * expected).abs() < 1e-11);
             }
         }
-        let positive = reseal_values(&result, 0, values);
+        let positive = reseal_block_values(&result, 0, 0, values);
         assert_eq!(positive, result.to_bytes().unwrap());
         assert_eq!(
             crate::CommonResult::from_bytes(&positive, result.plan()).unwrap(),
@@ -99,7 +106,7 @@ fn static_result_replay_rejects_resealed_equation_and_trace_violations() {
             let mut changed = values.to_vec();
             changed[index] = 1.;
             let error = crate::CommonResult::from_bytes(
-                &reseal_values(&result, 0, &changed),
+                &reseal_block_values(&result, 0, 0, &changed),
                 result.plan(),
             )
             .expect_err(
@@ -160,14 +167,14 @@ fn coordinate_result_replay_rejects_resealed_primary_and_reconstructed_fields() 
             let (_, values, _) = result.field_block(field, 0).unwrap();
             assert_eq!(values.len(), 1);
             assert!((values[0] - expected).abs() < 1e-12);
-            let original = reseal_values(&result, field, values);
+            let original = reseal_block_values(&result, field, 0, values);
             assert_eq!(original, result.to_bytes().unwrap());
             assert_eq!(
                 crate::CommonResult::from_bytes(&original, result.plan()).unwrap(),
                 result
             );
             let error = crate::CommonResult::from_bytes(
-                &reseal_values(&result, field, &[3.]),
+                &reseal_block_values(&result, field, 0, &[3.]),
                 result.plan(),
             )
             .expect_err(

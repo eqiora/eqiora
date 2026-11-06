@@ -1,0 +1,160 @@
+{
+  "schema": 1,
+  "preparation_only": true,
+  "case": "insulated",
+  "units": {
+    "coordinates": "m",
+    "A": "W/(m*K)",
+    "b": "W/m",
+    "coefficients": "K",
+    "left_reactions": "W/m",
+    "integrated_heat": "W/m",
+    "pointwise_heat_flux": "W/m^2"
+  },
+  "counts": {
+    "operator_rows": 9,
+    "load": 9,
+    "coefficients": 9,
+    "left_reactions": 3,
+    "free": 6
+  },
+  "ceiling_status": "eta=8192 binary64 unit roundoffs is declared, not an operation-count theorem",
+  "bounds": {
+    "eta": {
+      "numerator": "1",
+      "denominator": "1099511627776"
+    },
+    "sigma": {
+      "numerator": "1",
+      "denominator": "70368744177664"
+    },
+    "C": {
+      "numerator": "1614",
+      "denominator": "529"
+    },
+    "U": {
+      "numerator": "320",
+      "denominator": "1"
+    },
+    "SA": {
+      "numerator": "24",
+      "denominator": "1"
+    },
+    "b_norm": {
+      "numerator": "0",
+      "denominator": "1"
+    },
+    "Sb": {
+      "numerator": "7680",
+      "denominator": "1"
+    },
+    "deltaA": {
+      "numerator": "3",
+      "denominator": "137438953472"
+    },
+    "deltab": {
+      "numerator": "15",
+      "denominator": "2147483648"
+    },
+    "tau": {
+      "numerator": "15",
+      "denominator": "137438953472"
+    },
+    "E": {
+      "numerator": "1561545",
+      "denominator": "36352603190923"
+    },
+    "R": {
+      "numerator": "38371305517233496712879836635",
+      "denominator": "5493450075963996454824387962319405056"
+    },
+    "rho": {
+      "numerator": "115113916546410085487990574555",
+      "denominator": "5493450075963996454824387962319405056"
+    },
+    "reference_residual": {
+      "numerator": "1023615",
+      "denominator": "72705206381846"
+    },
+    "individual_reaction": {
+      "numerator": "5778490123516788429337657380315",
+      "denominator": "5493450075963996454824387962319405056"
+    },
+    "total_reaction": {
+      "numerator": "17335470370550365288012972140945",
+      "denominator": "5493450075963996454824387962319405056"
+    }
+  },
+  "observations": {
+    "operator_inf_error": {
+      "numerator": "1",
+      "denominator": "140737488355328"
+    },
+    "load_inf_error": {
+      "numerator": "0",
+      "denominator": "1"
+    },
+    "physical_free_residual_inf": {
+      "numerator": "7881299347898371",
+      "denominator": "19807040628566084398385987584"
+    },
+    "reference_free_residual_inf": {
+      "numerator": "7",
+      "denominator": "17592186044416"
+    },
+    "coefficient_inf_error": {
+      "numerator": "1",
+      "denominator": "17592186044416"
+    },
+    "native_vs_exported_recovery_inf_error": {
+      "numerator": "1125899906842625",
+      "denominator": "39614081257132168796771975168"
+    },
+    "native_vs_reference_recovery_inf_error": {
+      "numerator": "1",
+      "denominator": "35184372088832"
+    },
+    "reaction_target_inf_error": {
+      "numerator": "1",
+      "denominator": "8796093022208"
+    },
+    "reaction_total_target_error": {
+      "numerator": "1",
+      "denominator": "35184372088832"
+    }
+  },
+  "heat_convention": "physical_outward_heat=-weak_reaction",
+  "physical_outward_heat": {
+    "left": {
+      "numerator": "-1",
+      "denominator": "35184372088832"
+    },
+    "right": {
+      "numerator": "0",
+      "denominator": "1"
+    }
+  },
+  "exact_physical_outward_heat": {
+    "left": {
+      "numerator": "0",
+      "denominator": "1"
+    },
+    "right": {
+      "numerator": "0",
+      "denominator": "1"
+    }
+  },
+  "checks": {
+    "full_operator": true,
+    "full_load": true,
+    "physical_free_residual": true,
+    "every_coefficient": true,
+    "reference_free_residual": true,
+    "every_reaction_vs_exported_physical_operator": true,
+    "every_reaction_vs_reference_full_vector": true,
+    "every_reaction_vs_exact_target": true,
+    "reaction_total": true
+  },
+  "accepted": true,
+  "input_sha256": "0c085cbfd8ccb1901cffc5c893f303eb0a7bc00d0b874f0a8c7af8a914563efd"
+}

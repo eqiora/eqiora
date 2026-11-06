@@ -26,6 +26,7 @@ fn add_flux(fixture: &mut Fixture, ordinal: usize, value: f64) {
             ),
             &QuadratureRule::point(),
             |_, _| Ok(vec![value]),
+            None,
         )
         .unwrap();
     fixture.boundary_packets.push((0, prepared));
@@ -74,6 +75,6 @@ fn preparation_rejects_foreign_boundary_parent_and_geometry() {
             .prepare()
             .unwrap_err()
             .message()
-            .contains("exact parent geometry or Field binding")
+            .contains("exact parent geometry, Field binding or assembly quadrature")
     );
 }

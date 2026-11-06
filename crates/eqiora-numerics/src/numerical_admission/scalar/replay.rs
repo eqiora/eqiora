@@ -48,7 +48,10 @@ impl CommonSpatialPlan {
                     admission.resources(),
                     &admission.discretizations,
                     &admission.system_scaling,
-                    admission.operator_properties,
+                    RegionAssemblyPolicy {
+                        operator_properties: admission.operator_properties,
+                        quadrature: admission.assembly_quadrature(),
+                    },
                 )?;
                 system.validate_coefficients(values)?;
                 system.validate_initial_residual(initial.as_ref(), initial_residual_norm)
@@ -75,6 +78,7 @@ impl CommonSpatialPlan {
                     admission.resources(),
                     &admission.discretizations,
                     &admission.system_scaling,
+                    admission.assembly_quadrature(),
                 )?;
                 match system {
                     regions::StaticSpatialSystem::Real(system) => {

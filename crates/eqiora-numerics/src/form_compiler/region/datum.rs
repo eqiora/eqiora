@@ -205,6 +205,29 @@ impl<S: Coefficient> PrescribedDatum<S> {
         }
     }
 
+    /// Total spatial degree on an affine facet, where the unit normal is constant.
+    pub(crate) fn polynomial_degree(&self) -> Option<usize> {
+        match self {
+            Self::Components(values) => values.iter().try_fold(0, |degree, value| {
+                Some(degree.max(value.polynomial_degree()?))
+            }),
+            Self::NormalMultiple(value) => value.polynomial_degree(),
+            Self::Neg(value) => value.polynomial_degree(),
+            Self::Multiply { value, scalar, .. } => value
+                .polynomial_degree()
+                .zip(scalar.polynomial_degree())
+                .map(|(a, b)| a.saturating_add(b)),
+            Self::Divide { value, scalar } => (scalar.polynomial_degree() == Some(0))
+                .then(|| value.polynomial_degree())
+                .flatten(),
+            Self::Add(a, b) => a
+                .polynomial_degree()
+                .zip(b.polynomial_degree())
+                .map(|(a, b)| a.max(b)),
+            Self::Derivative { tangent, .. } => tangent.polynomial_degree(),
+        }
+    }
+
     pub(crate) fn evaluate(&self, point: &[f64], normal: &[f64]) -> Result<Vec<S>, Diagnostic> {
         self.evaluate_depth(point, normal, 0)
     }

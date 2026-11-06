@@ -14,6 +14,7 @@ mod support;
 mod transfer;
 mod transient;
 pub(crate) use regions::ExecutableSpatialEquations;
+pub(super) use regions::RegionAssemblyPolicy;
 
 pub(super) fn describe_primal(
     kind: FormulationKind,
@@ -28,7 +29,7 @@ pub(super) fn describe_primal(
         rule_ids: rule_ids.into(),
         selection_reason_codes: Box::new([match requested {
             FormulationSelectionMode::Automatic => {
-                "eqiora.formulation.auto.primal-galerkin-for-q1/v1"
+                "eqiora.formulation.auto.primal-galerkin-admitted/v1"
             }
             FormulationSelectionMode::Exact => {
                 "eqiora.formulation.exact.primal-galerkin-admitted/v1"
@@ -87,7 +88,10 @@ impl CommonSpatialPlan {
                     self.admission.resources(),
                     &self.admission.discretizations,
                     &self.admission.system_scaling,
-                    LinearOperatorProperties::Symmetric,
+                    RegionAssemblyPolicy {
+                        operator_properties: LinearOperatorProperties::Symmetric,
+                        quadrature: self.admission.assembly_quadrature(),
+                    },
                 )?;
                 let reference =
                     equations.mean_reference(self.admission.resources(), &system.mapping)?;
@@ -642,6 +646,32 @@ impl CommonSpatialPlan {
                 )),
             };
         }
+        if matches!(representation.space().family(), SpaceFamily::ContinuousLagrange { order } if order.get() == 2)
+        {
+            self.reauthenticate_portable_realization()?;
+            let NativeMeshResources::Cartesian { mesh, .. } = self.admission.resources() else {
+                return Err(invalid(
+                    "quadratic coefficient inspection currently requires the admitted Cartesian mesh",
+                ));
+            };
+            return match self.admission.recognized_model() {
+                RecognizedNativeModel::Spatial(equations) => support::cartesian_topology(
+                    equations,
+                    mesh.mesh(),
+                    field.erase(),
+                    representation.space(),
+                ),
+                RecognizedNativeModel::ComplexSpatial(equations) => support::cartesian_topology(
+                    equations,
+                    mesh.mesh(),
+                    field.erase(),
+                    representation.space(),
+                ),
+                _ => Err(invalid(
+                    "quadratic coefficients require exact linear Region equations",
+                )),
+            };
+        }
         let dimension = match representation.space().family() {
             SpaceFamily::ContinuousLagrange { .. } => 0,
             SpaceFamily::TetrahedralEdge => 1,
@@ -770,6 +800,8 @@ impl<'a> LiveStaticExecution<'a> {
         let (output, system) = plan
             .admission
             .execute_reauthenticated_linear(backend, fields.as_ref())?;
+        #[cfg(test)]
+        live_tests::capture::record(plan, system.as_ref())?;
         Ok(Self {
             plan,
             initial,

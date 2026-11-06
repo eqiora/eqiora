@@ -237,6 +237,7 @@ impl CommonSpatialPlan {
                     &self.admission.discretizations,
                     &self.admission.system_scaling,
                     boundary_value,
+                    self.admission.assembly_quadrature(),
                 )?;
                 input.prescribed_states = prescribed_states;
                 Ok((mapping, input))
@@ -250,6 +251,7 @@ impl CommonSpatialPlan {
                     &self.admission.system_scaling,
                     state.as_ref(),
                     boundary_value,
+                    self.admission.assembly_quadrature(),
                 )?;
                 Ok((
                     mapping,

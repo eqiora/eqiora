@@ -48,6 +48,7 @@ fn material_q1_trace_and_essential_reduction_preserve_the_symmetric_energy() {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     let plan = resolved.as_spatial().unwrap();
@@ -59,7 +60,10 @@ fn material_q1_trace_and_essential_reduction_preserve_the_symmetric_energy() {
             plan.admission.resources(),
             &plan.admission.discretizations,
             &plan.admission.system_scaling,
-            LinearOperatorProperties::General,
+            RegionAssemblyPolicy {
+                operator_properties: LinearOperatorProperties::General,
+                quadrature: None,
+            },
         )
         .unwrap();
     let fields = equations

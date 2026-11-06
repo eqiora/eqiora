@@ -191,6 +191,7 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
                 (&facet, *incidence, &parent_vertices),
                 &rule,
                 |_, normal| Ok(normal.iter().map(|normal| 3.0 * normal).collect()),
+                None,
             )
             .unwrap();
         let reversed = bound
@@ -200,6 +201,7 @@ fn uniform_stress_weak_volume_and_oriented_facet_loads_cancel_exactly() {
                 (&facet, *incidence, &parent_vertices),
                 &rule,
                 |_, normal| Ok(normal.iter().map(|normal| -3.0 * normal).collect()),
+                None,
             )
             .unwrap();
         for i in 0..6 {
@@ -306,6 +308,7 @@ fn intrinsic_facet_trace_preserves_parent_permutation_and_zero_bubble() {
                     assert_eq!(normal, [0.0, -1.0]);
                     Ok(vec![point[0] - 10.0, 0.0])
                 },
+                None,
             )
             .unwrap();
         // x=13-3t, ds=3dt: N0=t and N1=1-t. Their integrals
@@ -327,7 +330,8 @@ fn intrinsic_facet_trace_preserves_parent_permutation_and_zero_bubble() {
                     &cell,
                     (&facet, incidence, &[0, 2]),
                     &rule,
-                    |_, _| Ok(vec![0.0, 0.0])
+                    |_, _| Ok(vec![0.0, 0.0]),
+                    None
                 )
                 .is_err()
         );
@@ -342,7 +346,8 @@ fn intrinsic_facet_trace_preserves_parent_permutation_and_zero_bubble() {
                     &cell,
                     (&facet, wrong, &[1, 0]),
                     &rule,
-                    |_, _| Ok(vec![0.0, 0.0])
+                    |_, _| Ok(vec![0.0, 0.0]),
+                    None
                 )
                 .is_err()
         );
@@ -401,6 +406,7 @@ fn rounded_cartesian_midpoint_does_not_move_a_topological_facet_outside() {
                 assert_eq!(normal, [0.0, 1.0]);
                 Ok(vec![1.0, 0.0])
             },
+            None,
         )
         .unwrap();
     // Constant unit datum on a half-unit edge: each endpoint receives length/2.

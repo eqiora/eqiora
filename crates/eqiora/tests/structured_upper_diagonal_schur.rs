@@ -228,6 +228,7 @@ fn admit_case(
         &FaerLinearSolver,
         None,
         None,
+        None,
     )?;
     assert_eq!(
         plan.effective_solver().unwrap().preconditioner(),

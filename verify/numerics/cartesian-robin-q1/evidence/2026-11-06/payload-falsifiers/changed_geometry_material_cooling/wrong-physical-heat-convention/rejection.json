@@ -1,0 +1,6 @@
+{
+  "accepted": false,
+  "error": "heat_sign",
+  "message": "incorrect physical heat/weak reaction sign",
+  "input_sha256": "88cf6896b1fc26c83ecd19caea12657d38c3b7a1db2979998b21a98271f95a76"
+}

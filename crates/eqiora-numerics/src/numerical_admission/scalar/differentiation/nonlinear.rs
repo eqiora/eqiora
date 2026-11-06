@@ -56,7 +56,10 @@ where
             admission.resources(),
             &admission.discretizations,
             &admission.system_scaling,
-            admission.operator_properties,
+            RegionAssemblyPolicy {
+                operator_properties: admission.operator_properties,
+                quadrature: admission.assembly_quadrature(),
+            },
         )?;
         let seed = self.plan.physical_fields(
             &mapping,

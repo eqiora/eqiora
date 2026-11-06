@@ -1,0 +1,24 @@
+{
+  "case": "changed_h",
+  "defect": "reversed-weak-reaction-sign",
+  "pid": 515582,
+  "command": [
+    "taskset",
+    "-c",
+    "63",
+    "python3",
+    "/data/nk523/tmp/eqiora-robin-q1-reference/wt/verify/numerics/cartesian-robin-q1/reference/robin.py",
+    "compare",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-weak-reaction-sign/mutant.json",
+    "--output",
+    "/data/nk523/.cache/eqiora/robin-campaign/build-619725c18-1/execution/payload-falsifiers/changed_h/reversed-weak-reaction-sign/rejection.json"
+  ],
+  "exit_code": 1,
+  "required_false": "every_reaction_vs_exact_target",
+  "required_true": null,
+  "input_sha256": "cbae9517709c9e7d86f06cdb75a7767fe687a16a88a81d2cac16af4b77a95bc9",
+  "report_sha256": "93196fe435da2bab67c3bb7b30abc59fe19609a91d6af93bfad9cce3f3531af8",
+  "base_native_input_sha256": "c01908fc470526b87bd31492d7ec66fadd000b6fb1d37a2327bf546288d41ffe",
+  "accepted": false,
+  "status": "expected-rejection"
+}

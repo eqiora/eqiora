@@ -30,7 +30,7 @@ pub(super) fn resolve_scalar(
     };
     for policy in policies {
         match policy {
-            CommonSpatialPolicy::Q1 if !simplicial => {}
+            CommonSpatialPolicy::Q1 | CommonSpatialPolicy::Q2 if !simplicial => {}
             CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1 if simplicial => {}
             CommonSpatialPolicy::TetrahedralEdge | CommonSpatialPolicy::TetrahedralFace => {}
             CommonSpatialPolicy::CellCentered | CommonSpatialPolicy::CellCenteredTpfa => {
@@ -38,7 +38,10 @@ pub(super) fn resolve_scalar(
                     "linear finite-element Regions cannot use scoped cell-centered policies",
                 ));
             }
-            CommonSpatialPolicy::Q1 | CommonSpatialPolicy::P1 | CommonSpatialPolicy::MiniP1 => {
+            CommonSpatialPolicy::Q1
+            | CommonSpatialPolicy::Q2
+            | CommonSpatialPolicy::P1
+            | CommonSpatialPolicy::MiniP1 => {
                 return Err(invalid(
                     "linear Q1 requires Cartesian cells and P1 or MINI/P1 requires simplicial cells",
                 ));
@@ -90,6 +93,7 @@ pub(super) fn resolve_transient(
         CommonSpatialPolicy::TetrahedralEdge
         | CommonSpatialPolicy::TetrahedralFace
         | CommonSpatialPolicy::Q1
+        | CommonSpatialPolicy::Q2
         | CommonSpatialPolicy::CellCenteredTpfa => Err(invalid(
             "transient incompressible-flow mathematics requires MINI/P1 or CellCentered",
         )),

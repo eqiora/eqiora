@@ -90,6 +90,7 @@ fn fixed_reference_equations_bind_through_shared_simplicial_regions() {
             mesh,
             &discretizations,
             &eqiora_realization::SystemScaling::Dimensional,
+            None,
         )
         .unwrap();
     assert_eq!(forms.len(), 2);
@@ -225,6 +226,7 @@ fn fixed_reference_equations_execute_through_common_linear_run() {
         None,
         Some(CommonTemporalPolicy::backward_euler(0.05).unwrap()),
         &REFERENCE_LINEAR_SOLVER,
+        None,
         None,
         None,
     )

@@ -102,6 +102,7 @@ fn solve(boundary: &str, permute: bool) -> (CommonResult, Id<kinds::Field>) {
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     (

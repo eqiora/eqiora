@@ -63,6 +63,7 @@ pub(crate) struct BoundRegionForm<S: Coefficient> {
     pub(super) eliminations: BTreeMap<RawId, RawId>,
     pub(super) time: Option<RegionTimeBinding>,
     pub(super) row_multipliers: Vec<f64>,
+    pub(super) assembly_points: Option<usize>,
 }
 
 impl<S: Coefficient> CompiledRegionForm<S> {
@@ -172,6 +173,7 @@ impl<S: Coefficient> CompiledRegionForm<S> {
             }
         }
         Ok(BoundRegionForm {
+            assembly_points: None,
             conservative_flux: None,
             form: self.clone(),
             reference,

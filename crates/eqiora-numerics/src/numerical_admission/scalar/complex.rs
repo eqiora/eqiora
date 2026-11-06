@@ -113,6 +113,7 @@ impl NativeNumericalAdmission {
             self.resources(),
             &self.discretizations,
             &self.system_scaling,
+            self.assembly_quadrature(),
         )?;
         let output = match system {
             regions::StaticSpatialSystem::Real(system) => {

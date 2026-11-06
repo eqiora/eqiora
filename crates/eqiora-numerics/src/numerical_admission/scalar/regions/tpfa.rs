@@ -12,6 +12,15 @@ impl<S: Coefficient> ExecutableSpatialEquations<S> {
     ) -> Result<LinearOperatorProperties, Diagnostic> {
         let region = self.single()?;
         region.cartesian()?;
+        if region
+            .form
+            .boundary_laws()
+            .values()
+            .flat_map(|laws| laws.values())
+            .any(|law| law.robin_coefficient().is_some())
+        {
+            return Err(invalid("Cartesian TPFA does not admit Robin boundary laws"));
+        }
         if !self.interfaces.is_empty() {
             return Err(invalid(
                 "TPFA requires one Region without interface quotients",

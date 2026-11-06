@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "lengths_m": [
+    2,
+    3,
+    4
+  ],
+  "N": 2,
+  "gauss_points": 4,
+  "reaction_units": "m^(1)",
+  "coefficient_count": 125,
+  "free_count": 100,
+  "upper_reaction_count": 25,
+  "reaction_convention": "unscaled physical K*v-F-G on upper-x face",
+  "rounding_ceiling_status": "declared 8192-unit-roundoff ceiling; not a universal floating-point theorem",
+  "free_residual_squared": {
+    "numerator": "757355584362617",
+    "denominator": "10645831152764688772121433255004078080000"
+  },
+  "free_residual_squared_budget": {
+    "numerator": "1",
+    "denominator": "1208925819614629174706176"
+  },
+  "maximum_coefficient_error": {
+    "numerator": "1213",
+    "denominator": "1125899906842624"
+  },
+  "coefficient_error_budget": {
+    "numerator": "125",
+    "denominator": "8589934592"
+  },
+  "Kinf_bound": {
+    "numerator": "1952",
+    "denominator": "81"
+  },
+  "Binf": {
+    "numerator": "2989",
+    "denominator": "1600"
+  },
+  "reaction_component_budget_rho": {
+    "numerator": "25227709",
+    "denominator": "142496706959769600"
+  },
+  "maximum_native_reaction_error": {
+    "numerator": "10801",
+    "denominator": "3647915698170101760"
+  },
+  "native_reaction_sum": {
+    "numerator": "1537228672809139079",
+    "denominator": "72057594037927936"
+  },
+  "full_vector_reaction_sum": {
+    "numerator": "216172782113785093",
+    "denominator": "10133099161583616"
+  },
+  "analytic_reaction_sum": {
+    "numerator": "64",
+    "denominator": "3"
+  },
+  "native_sum_vs_full_vector_error": {
+    "numerator": "5759",
+    "denominator": "648518346341351424"
+  },
+  "native_sum_vs_full_vector_budget": {
+    "numerator": "25227709",
+    "denominator": "5699868278390784"
+  },
+  "native_sum_vs_target_error": {
+    "numerator": "29333",
+    "denominator": "216172782113783808"
+  },
+  "native_sum_vs_target_budget": {
+    "numerator": "16665475903",
+    "denominator": "1899956092796928"
+  },
+  "checks": {
+    "free_residual_squared": true,
+    "every_coefficient": true,
+    "every_native_reaction": true,
+    "native_sum_vs_full_vector_reaction_sum": true,
+    "native_sum_vs_analytic_target": true
+  },
+  "accepted": true,
+  "input_sha256": "69923eb2d140587e1c5d0db46ffbcd48de8c3b9354bf32694486e2b5ff2d6149"
+}

@@ -106,6 +106,7 @@ fn resolve_with_scaling(source: &str, scale: Option<f64>) -> (ResolvedCommonPlan
         &REFERENCE_LINEAR_SOLVER,
         None,
         None,
+        None,
     )
     .unwrap();
     (replay_plan(resolved, &REFERENCE_LINEAR_SOLVER), fields)
@@ -312,6 +313,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
             mesh.mesh(),
             &admission.discretizations,
             &eqiora_realization::SystemScaling::Dimensional,
+            None,
         )
         .unwrap();
     // The independent modal derivation above gives 24I+L with eigenvalues
@@ -339,6 +341,7 @@ fn shared_region_solve_preserves_the_admitted_operator_class() {
             mesh.mesh(),
             &admission.discretizations,
             &eqiora_realization::SystemScaling::Dimensional,
+            None,
         )
         .unwrap();
     let error = mapping

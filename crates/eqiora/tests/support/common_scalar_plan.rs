@@ -128,7 +128,7 @@ pub(crate) fn plan_for_document_with_solver(
             .unwrap();
     let model = ModelEnvelope::from_program(document.program()).unwrap();
     eqiora_numerics::ResolvedCommonPlan::resolve(
-        &model, owner, spatial, solver, None, None, backend, None, None,
+        &model, owner, spatial, solver, None, None, backend, None, None, None,
     )
     .unwrap()
     .as_spatial()
@@ -144,7 +144,8 @@ pub(crate) fn document_and_plan_with_source(
     let plan = match spatial {
         CommonSpatialPolicy::Q1 => q1,
         CommonSpatialPolicy::CellCenteredTpfa => tpfa,
-        CommonSpatialPolicy::TetrahedralEdge
+        CommonSpatialPolicy::Q2
+        | CommonSpatialPolicy::TetrahedralEdge
         | CommonSpatialPolicy::TetrahedralFace
         | CommonSpatialPolicy::P1
         | CommonSpatialPolicy::MiniP1
@@ -334,6 +335,7 @@ fn document_and_plans_with_source(
             None,
             None,
             &REFERENCE_LINEAR_SOLVER,
+            None,
             None,
             None,
         )
