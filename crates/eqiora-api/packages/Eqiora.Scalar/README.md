@@ -1,6 +1,6 @@
 # Eqiora.Scalar
 
-The development package `Eqiora.Scalar@0.4.0` supplies two-dimensional scalar
+The development package `Eqiora.Scalar@0.5.0` supplies two-dimensional scalar
 Poisson and Laplace equations for a dimensionless potential, and steady and
 constant-capacity transient heat conduction for a temperature in kelvins. Coordinates are measured in metres.
 Each component declares its physical units explicitly.
@@ -123,3 +123,27 @@ with caller-owned initial data and Plan/State/Result replay and restart.
 No stabilization, positivity guarantee, outflow/natural or periodic boundary
 workflow, finite-volume local-conservation claim, MPI or GPU package evidence
 is supplied. Advection-dominated problems may need a stabilized method.
+
+## Convective heat transfer
+
+`ConvectiveHeatTransfer2d` borrows the caller's smooth Kelvin temperature Field
+and a boundary of the same two-dimensional body. Supply the same `conductivity`
+(in W/(m K)) as the volume heat law, a heat-transfer `coefficient` in W/(m² K),
+and an `ambient` Kelvin expression on the face. These inputs have no defaults.
+The equation is
+`normal(conductivity * grad(temperature)) + coefficient * trace(temperature) = coefficient * ambient`.
+Thus physical outward heat flux is `coefficient * (temperature - ambient)`.
+A zero coefficient gives insulation; heating and cooling use the same equation.
+
+```eqiora
+instance convection: scalar.ConvectiveHeatTransfer2d(
+  body = body, face = right, temperature = temperature,
+  conductivity = conductivity, coefficient = 2[W/(m^2*K)], ambient = 320[K]
+);
+```
+
+The supported numerical path is steady affine Cartesian 2D Q1 on the serial CPU
+reference provider. TPFA returns a typed unsupported diagnostic. No transient,
+threaded, MPI or GPU convection execution is claimed. See the imported and
+hand-written `ConvectiveHeatedBody` entries in
+[`examples/heated-body`](../../../../examples/heated-body/README.md).

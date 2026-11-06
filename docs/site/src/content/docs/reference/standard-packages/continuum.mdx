@@ -23,7 +23,7 @@ the bundled Fluid release is 0.5.0 and Solid.LinearElasticity is 0.7.0. The publ
 
 ## Scalar Poisson and Laplace
 
-Development builds bundle `Eqiora.Scalar@0.4.0`. Import
+Development builds bundle `Eqiora.Scalar@0.5.0`. Import
 `Eqiora.Scalar.scalar as scalar` for a **dimensionless potential** on a
 2D body whose coordinates are measured in metres. The dimensionless
 `coefficient` defaults to one; override it explicitly for another constant.
@@ -46,7 +46,7 @@ for complete imported and handwritten versions of one problem. Save its imported
 source as `inverse-poisson.eqi` and use the lesson runner's complete
 `eqiora.compile` call with its entry, geometry and parameter bindings. The
 ordinary compile path resolves the bundled import. Explicit package
-projects can add `"Eqiora.Scalar"` with `version="0.4.0"` through
+projects can add `"Eqiora.Scalar"` with `version="0.5.0"` through
 `eqiora.add_bundled_dependency` and vendor it for offline reopening.
 
 These Poisson and Laplace components have a dimensionless potential; use the
@@ -59,13 +59,21 @@ GPU, unstructured-mesh, Robin or periodic execution support.
 
 ## Steady heat conduction
 
-The same `Eqiora.Scalar@0.4.0` module also provides fixed-SI thermal components:
+The same `Eqiora.Scalar@0.5.0` module also provides fixed-SI thermal components:
 
 - `SteadyHeat2d`: Fourier flux `-conductivity * grad(temperature)` and volumetric `heating`.
 - `TransientHeat2d`: the same flux/source plus `storage capacity * temperature`
   for a caller-owned temperature State, with capacity in J/(m³ K).
 - `FixedTemperature2d`: prescribed Kelvin temperature expression on a boundary.
 - `OutwardHeatFlux2d`: prescribed physical outward heat flux expression in W/m².
+- `ConvectiveHeatTransfer2d`: physical outward heat flux
+  `coefficient * (temperature - ambient)`, with coefficient in W/(m² K).
+
+Convection takes the same conductivity as the volume and a smooth Kelvin Field.
+The caller supplies all inputs; the ambient temperature is an expression on the
+bound face. The supported path is steady affine Cartesian 2D Q1, serial CPU
+reference provider. TPFA returns a typed unsupported diagnostic. Transient,
+threaded, MPI and GPU convection execution remain unverified.
 
 Temperature is a Kelvin Field, conductivity is an explicit parameter in W/(m K),
 and heating has units W/m³. Positive heat flux leaves the body; use
@@ -217,7 +225,7 @@ this Fluid consolidation does not change its distribution.
 
 ## Transient scalar advection–diffusion
 
-Development Scalar 0.4.0 provides `TransientAdvectionDiffusion2d` for
+Development Scalar 0.5.0 provides `TransientAdvectionDiffusion2d` for
 `∂c/∂t + div(c β − κ grad(c)) = q`. Bind the caller's dimensionless State to
 `scalar`, a constant positive `diffusivity` in `m²/s`, prescribed `velocity_x`
 and `velocity_y` expressions in `m/s`, and `source` in `1/s`. The velocity can

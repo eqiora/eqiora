@@ -93,14 +93,14 @@ not update the lock or manage shared-store permissions.
 
 ## Bundled packages in Python and the CLI
 
-The Scalar 0.4.0, Fluid 0.5.0 and Solid.LinearElasticity 0.7.0 releases below
+The Scalar 0.5.0, Fluid 0.5.0 and Solid.LinearElasticity 0.7.0 releases below
 are available from development builds.
 The published Eqiora 0.1.5 distribution is unchanged. Current development builds
 write Model and Model Transaction v50 artifacts; use the build that produced an
 older artifact to open it, or regenerate it from source.
 
 `eqiora.add_bundled_dependency(...)` and `eqiora package add --bundled` add
-`Eqiora.Scalar@0.4.0`, `Eqiora.Fluid@0.5.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
+`Eqiora.Scalar@0.5.0`, `Eqiora.Fluid@0.5.0` or `Eqiora.Solid.LinearElasticity@0.7.0`
 to a project as ordinary dependencies, writing the manifest, the lock, and the
 store entries. `eqiora.vendor_project(...)` copies all resolved dependencies to
 an offline store, and `eqiora.open_project(...)` validates such a store without

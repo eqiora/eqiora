@@ -91,6 +91,20 @@ public component OutwardHeatFlux2d(
   }
 }
 
+public component ConvectiveHeatTransfer2d(
+  support body: volume(ambient_dimension = 2),
+  support face: boundary(parent = body),
+  variable temperature: K on body in smooth,
+  parameter conductivity: W / (m * K),
+  parameter coefficient: W / (m ^ 2 * K),
+  expression ambient: K on face
+) {
+  relation convective_heat_transfer on face {
+    normal(conductivity * grad(temperature)) + coefficient * trace(temperature)
+      = coefficient * ambient;
+  }
+}
+
 public component TransientAdvectionDiffusion2d(
   support body: volume(ambient_dimension = 2),
   state scalar: 1 on body in h1,

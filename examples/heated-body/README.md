@@ -1,7 +1,7 @@
 # Steady heated body at a prescribed surface temperature
 
 Run `python examples/heated-body/run.py` with a development build from this checkout.
-The published 0.1.5 wheel does not supply `Eqiora.Scalar@0.4.0`.
+The published 0.1.5 wheel does not supply `Eqiora.Scalar@0.5.0`.
 The script resolves the local `org.example.HeatedBody` package and its bundled
 Scalar dependency, binds the geometry it creates, generates a 2 × 2 Q1 mesh, selects the reference linear
 solver explicitly, and runs the standard Plan lifecycle. No registry, download,
@@ -33,8 +33,7 @@ project offline. Both imported compilation paths retain package provenance.
 The hand-written alternative has no package dependency.
 
 `HeatedBody` itself is steady: it has no time variable, initial condition, or
-heat storage. A full three-dimensional heated cube, convective conditions and
-coupled thermal interfaces are not part of this example. The steady package executes Cartesian
+heat storage. A full three-dimensional heated cube, coupled thermal interfaces are not part of this example. The steady package executes Cartesian
 2D Q1 on CPU; this example claims no threaded, MPI or GPU package validation.
 
 ## Heat storage and initial conditions
@@ -65,3 +64,23 @@ capacity, interfaces, transient sensitivities, or a certificate linking the
 authored transient law to its weak form. The [hand-written alternative](handwritten.eqi) retains both complete components.
 Its steady entry supplies an authored weak form; both transient entries use the
 same automatic formulation. Imports and direct equations share the numerical owner.
+
+## Cooling or warming through convection
+
+`ConvectiveHeatedBody` keeps the original all-fixed example intact. It imports
+`SteadyHeat2d`, `FixedTemperature2d`, `OutwardHeatFlux2d` and
+`ConvectiveHeatTransfer2d`; the same component in [handwritten.eqi](handwritten.eqi)
+writes every law directly. The left face is held at `cold_temperature`, the right
+face exchanges heat with `ambient_temperature`, and the horizontal faces are
+insulated. Supply `conductivity` in W/(m K) and `coefficient` in W/(m² K).
+
+For a rectangle of length L and height H, without volume heating, the independent
+one-dimensional solution is
+`T(x) = Tc + h*(Tinf - Tc)*x/(k + h*L)`.
+It follows by substituting an affine temperature into Fourier's law and the
+right-face condition `-k*dT/dx = h*(T(L)-Tinf)`. Height does not enter this
+profile. Zero h is insulated; changing the sign of Tinf−Tc reverses heat flow.
+
+The convection path supports steady affine Cartesian 2D Q1 on the serial CPU
+reference provider. TPFA is unsupported and returns a typed diagnostic.
+Transient convection, threaded, MPI and GPU execution remain unverified.

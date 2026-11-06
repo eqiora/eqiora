@@ -85,7 +85,7 @@ to the continuous square problem, so it need not preserve this center value.
 ## Express those equations in `.eqi`
 
 Use a development build from the same checkout: the published 0.1.5 wheel does
-not contain `Eqiora.Scalar@0.4.0`. The steady `HeatedBody` imports the standard
+not contain `Eqiora.Scalar@0.5.0`. The steady `HeatedBody` imports the standard
 thermal equation and fixed-temperature boundaries. `TransientHeatedBody` below it
 imports the standard storage equation and is used in the next chapter.
 
@@ -244,6 +244,38 @@ test function $\phi$; its load of 1/4 W/m is not the full source integral of
    spatial method belong to the numerical realization.
 
 </details>
+
+
+## A convecting face
+
+The separate `ConvectiveHeatedBody` entry keeps the all-fixed example above.
+It holds the left face at `cold_temperature`, insulates the horizontal faces,
+and imports `ConvectiveHeatTransfer2d` on the right face:
+
+```eqiora
+instance convection: scalar.ConvectiveHeatTransfer2d(
+  body = body, face = x_upper, temperature = temperature,
+  conductivity = conductivity, coefficient = coefficient, ambient = ambient_temperature
+);
+```
+
+The corresponding hand-written relation is:
+
+```eqiora
+relation convection on x_upper {
+  normal(conductivity * grad(temperature)) + coefficient * trace(temperature)
+    = coefficient * ambient_temperature;
+}
+```
+
+Here `temperature` is smooth, conductivity has units W/(m K), coefficient has
+units W/(m² K), and ambient temperature has units K. There are no default
+material values. Physical outward heat flux is `h*(T-Tinf)`. On a rectangle
+with left temperature Tc and length L, substitution gives
+`T(x)=Tc+h*(Tinf-Tc)*x/(k+h*L)` without volume heating.
+Both forms are in the maintained heated-body sources. The convection path is
+steady affine Cartesian 2D Q1 with the serial CPU reference provider; TPFA,
+transient convection, threaded, MPI and GPU paths are not supported here.
 
 ## References and source
 
