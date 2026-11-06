@@ -3,8 +3,7 @@ use std::num::NonZeroUsize;
 use eqiora_core::diagnostic::codes;
 use eqiora_core::{DimExponents, DynQuantity, ScalarType};
 use eqiora_solver::{
-    LinearSolver, PreconditionerPolicy, ReductionPolicy, SolverCapabilities, SolverCapability,
-    SolverPlan,
+    LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability, SolverPlan,
 };
 
 use super::*;
@@ -422,7 +421,7 @@ fn capabilities() -> TransientCellCenteredIncompressibleFlowCapabilities {
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }])

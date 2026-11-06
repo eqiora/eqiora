@@ -462,7 +462,7 @@ fn common_plan_matches_independent_two_step_scientific_composition() {
             &common_model,
             resources.clone(),
             scoped.clone(),
-            requested,
+            requested.clone(),
             scaling,
             Some(CommonTemporalPolicy::backward_euler(0.05).unwrap()),
             &REFERENCE_LINEAR_SOLVER,

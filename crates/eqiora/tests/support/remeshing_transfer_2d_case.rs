@@ -592,7 +592,7 @@ pub(super) fn assert_scale_invariant_projection(
         accepted.target().motion(),
         alternative_scale,
         &simplex_duffy_gauss_legendre(2, 5).unwrap(),
-        LinearSolveRequest::new(backend, transfer_plan.solver()),
+        LinearSolveRequest::new(backend, transfer_plan.solver().clone()),
     )
     .unwrap();
 
@@ -876,7 +876,7 @@ pub(super) fn scale_invariance_transfer_plan(
             DynQuantity::new(4.0, PRESSURE),
         )
         .unwrap(),
-        base.solver(),
+        base.solver().clone(),
     )
     .unwrap()
 }
@@ -1018,7 +1018,7 @@ fn capabilities() -> RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora::solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -1026,7 +1026,7 @@ fn capabilities() -> RealizationCapabilities {
                 scalar_domain: eqiora_core::ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: eqiora::solver::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },

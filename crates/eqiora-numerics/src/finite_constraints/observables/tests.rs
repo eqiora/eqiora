@@ -71,7 +71,7 @@ fn integral_candidates_and_ad_share_the_exact_parameter_point() {
             .solve_at_point(
                 &[1.0],
                 nonlinear,
-                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, linear),
+                LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, linear.clone()),
             )
             .unwrap();
         assert!((solved.values[0] - w).abs() <= 1e-12);

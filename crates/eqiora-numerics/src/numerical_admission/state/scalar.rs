@@ -31,7 +31,7 @@ impl<'a> PreparedScalarExecution<'a> {
             plan.admission
                 .linear
                 .checked_backend(backend, Some(&structure))?
-                .prepare_linear(plan.admission.linear.solver)?
+                .prepare_linear(plan.admission.linear.solver.clone())?
         };
         Ok(Self {
             plan,

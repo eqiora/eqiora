@@ -187,7 +187,7 @@ fn discrete_adjoint_crosses_one_validated_semantic_restart() {
         &[&[0., 0.], &[0., 0.], &[0., 0.], &[0., 1.]],
         &[0.125],
         LinearOperatorProperties::General,
-        solver,
+        solver.clone(),
     )
     .unwrap();
 

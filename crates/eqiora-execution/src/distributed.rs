@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use eqiora_core::Diagnostic;
 use eqiora_distributed::{
-    DistributedAdmissionFingerprintV1, DistributedLayoutAgreementIdentityV1,
+    DistributedAdmissionFingerprintV2, DistributedLayoutAgreementIdentityV1,
     PartitionAgreementIdentityV1,
 };
 use eqiora_solver::{CanonicalCsrAgreementFingerprintV1, SolverPlan};
@@ -84,7 +84,7 @@ impl DistributedCollectiveStepV1 {
 ///
 /// # Errors
 /// Returns `EQ0807` when the capacity would overflow `usize`.
-fn distributed_collective_trace_capacity(plan: SolverPlan) -> Result<usize, Diagnostic> {
+fn distributed_collective_trace_capacity(plan: &SolverPlan) -> Result<usize, Diagnostic> {
     const SETUP_AND_FINALIZATION: usize = 64;
     const PER_ITERATION: usize = 32;
     plan.maximum_iterations()
@@ -105,7 +105,7 @@ pub struct DistributedLinearExecutionTrace {
     system: CanonicalCsrAgreementFingerprintV1,
     partition: PartitionAgreementIdentityV1,
     layout: DistributedLayoutAgreementIdentityV1,
-    admission: DistributedAdmissionFingerprintV1,
+    admission: DistributedAdmissionFingerprintV2,
     process_group: ProcessGroupSlot,
     partitions: NonZeroUsize,
     workers_per_partition: NonZeroUsize,
@@ -120,7 +120,7 @@ impl DistributedLinearExecutionTrace {
     /// # Errors
     /// Returns a structured diagnostic when the plan's iteration bound cannot
     /// be represented by the fixed distributed trace schedule.
-    pub fn collective_capacity(plan: SolverPlan) -> Result<usize, Diagnostic> {
+    pub fn collective_capacity(plan: &SolverPlan) -> Result<usize, Diagnostic> {
         distributed_collective_trace_capacity(plan)
     }
 
@@ -135,14 +135,14 @@ impl DistributedLinearExecutionTrace {
         system: CanonicalCsrAgreementFingerprintV1,
         partition: PartitionAgreementIdentityV1,
         layout: DistributedLayoutAgreementIdentityV1,
-        admission: DistributedAdmissionFingerprintV1,
+        admission: DistributedAdmissionFingerprintV2,
         process_group: ProcessGroupSlot,
         partitions: NonZeroUsize,
         workers_per_partition: NonZeroUsize,
         owner_gather_dimension: usize,
         trace_capacity: usize,
         steps: Vec<DistributedCollectiveStepV1>,
-        plan: SolverPlan,
+        plan: &SolverPlan,
     ) -> Result<Self, Diagnostic> {
         let maximum_capacity = distributed_collective_trace_capacity(plan)?;
         if trace_capacity > maximum_capacity || steps.len() > trace_capacity {
@@ -202,7 +202,7 @@ impl DistributedLinearExecutionTrace {
 
     /// System, layout, and plan admission agreed by all partitions.
     #[must_use]
-    pub const fn admission(&self) -> DistributedAdmissionFingerprintV1 {
+    pub const fn admission(&self) -> DistributedAdmissionFingerprintV2 {
         self.admission
     }
 

@@ -322,7 +322,7 @@ impl LinearSolverBackend for ThreadedLinearSolver<'_> {
     ) -> Result<LinearSolution, Diagnostic> {
         Self::require_serial_entry(execution)?;
         self.supported_capabilities()?.require_problem(
-            plan,
+            &plan,
             problem.scalar_domain(),
             problem.scalar_type(),
             problem.properties(),
@@ -590,7 +590,7 @@ mod tests {
                     eqiora_solver::LinearOperatorProperties::SymmetricPositiveDefinite,
                     eqiora_solver::LinearOperatorProperties::SymmetricIndefinite,
                 ],
-                [PreconditionerPolicy::Identity],
+                [eqiora_solver::PreconditionerKind::Identity],
                 [ReductionPolicy::Fast],
                 eqiora_core::ScalarDomain::Real,
                 [ScalarType::F64],

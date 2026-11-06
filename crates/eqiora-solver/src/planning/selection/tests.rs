@@ -21,7 +21,7 @@ fn available() -> SolverProviderAvailability {
                 scalar_domain: ScalarDomain::Real,
                 algorithm: LinearSolver::ConjugateGradient,
                 operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-                preconditioner: PreconditionerPolicy::Jacobi,
+                preconditioner: crate::PreconditionerKind::Jacobi,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -29,7 +29,7 @@ fn available() -> SolverProviderAvailability {
                 scalar_domain: ScalarDomain::Real,
                 algorithm: LinearSolver::BiConjugateGradientStabilized,
                 operator_properties: LinearOperatorProperties::General,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: crate::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -37,7 +37,7 @@ fn available() -> SolverProviderAvailability {
                 scalar_domain: ScalarDomain::Real,
                 algorithm: LinearSolver::MinimumResidual,
                 operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                preconditioner: PreconditionerPolicy::Identity,
+                preconditioner: crate::PreconditionerKind::Identity,
                 reduction: ReductionPolicy::Fast,
                 scalar_type: ScalarType::F64,
             },
@@ -110,9 +110,9 @@ pub(crate) fn declared_cuda_selection_has_literal_tuples_and_unknown_costs() {
             .unwrap();
             let expected = SolverPlan::new(algorithm, 2e-9, 3e-12, NonZeroUsize::new(73).unwrap())
                 .unwrap()
-                .with_preconditioner(preconditioner)
+                .with_preconditioner(preconditioner.clone())
                 .with_reduction(ReductionPolicy::Fast);
-            assert_eq!(selection.solver_plan(), expected);
+            assert_eq!(selection.solver_plan(), &expected);
             assert_eq!(selection.selected_candidate_id(), id);
             assert_eq!(selection.execution(), deployment().1);
             assert_eq!(selection.solver_provider(), CUDA_PROVIDER);
@@ -244,4 +244,124 @@ pub(crate) fn declared_host_selection_preserves_existing_reference_choice() {
         );
         assert_eq!(selected.execution(), crate::ExecutionReport::host_serial());
     }
+}
+
+#[test]
+fn explicit_structured_policy_is_retained_and_requires_realized_cover_at_execution() {
+    use crate::{
+        AlgebraicBlock, AlgebraicStructure, FixedFactorizationChoice, PreconditionerKind,
+        UpperDiagonalSchurConfig,
+    };
+    let a = eqiora_core::Id::new();
+    let b = eqiora_core::Id::new();
+    let groups = [
+        vec![AlgebraicBlock::Field(a)],
+        vec![AlgebraicBlock::Field(b)],
+    ];
+    let choice = FixedFactorizationChoice::new(LinearSolver::SparseLu, "eqiora.faer").unwrap();
+    let policy = PreconditionerPolicy::upper_diagonal_schur(
+        UpperDiagonalSchurConfig::new(groups, choice.clone(), choice, 32, 64).unwrap(),
+    );
+    let structure = AlgebraicStructure::new([a, b], []).unwrap();
+    let profile =
+        SolverPlanningProfile::canonical_csr(LinearOperatorProperties::General, None, None)
+            .with_structure(structure.clone())
+            .unwrap()
+            .with_preconditioner(policy.clone());
+    let capability = SolverCapability {
+        scalar_domain: ScalarDomain::Real,
+        algorithm: LinearSolver::BiConjugateGradientStabilized,
+        operator_properties: LinearOperatorProperties::General,
+        preconditioner: PreconditionerKind::UpperDiagonalSchur,
+        reduction: ReductionPolicy::Fast,
+        scalar_type: ScalarType::F64,
+    };
+    let availability = SolverProviderAvailability::new(
+        FAER_PROVIDER,
+        SERIAL_EXECUTION_PROVIDER,
+        crate::ExecutionReport::host_serial(),
+        crate::SolverCapabilities::exact([capability]).unwrap(),
+    )
+    .unwrap();
+    let selected = SolverSelection::resolve_available::<f64>(
+        profile.clone(),
+        SolverPlanningObjective::Fast,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(8).unwrap(),
+        std::slice::from_ref(&availability),
+    )
+    .unwrap();
+    assert_eq!(selected.solver_plan().preconditioner(), &policy);
+    assert_eq!(
+        selected.selected_evidence_case(),
+        "numerics.structured-upper-diagonal-schur"
+    );
+    assert!(
+        profile
+            .require_plan(
+                &selected
+                    .solver_plan()
+                    .clone()
+                    .with_preconditioner(PreconditionerPolicy::Identity)
+            )
+            .is_err()
+    );
+    let PreconditionerPolicy::UpperDiagonalSchur(config) = &policy else {
+        unreachable!()
+    };
+    let wrong_policy = PreconditionerPolicy::upper_diagonal_schur(
+        UpperDiagonalSchurConfig::new(
+            config.groups().clone(),
+            FixedFactorizationChoice::new(LinearSolver::SparseLu, "other.provider").unwrap(),
+            config.schur_factorization().clone(),
+            32,
+            64,
+        )
+        .unwrap(),
+    );
+    let wrong_profile = profile.clone().with_preconditioner(wrong_policy.clone());
+    let wrong_plan = selected
+        .solver_plan()
+        .clone()
+        .with_preconditioner(wrong_policy);
+    assert!(wrong_profile.require_plan(&wrong_plan).is_ok());
+    let manual = wrong_profile
+        .require_resources(
+            &wrong_plan,
+            FAER_PROVIDER,
+            ScalarDomain::Real,
+            ScalarType::F64,
+        )
+        .unwrap_err();
+    assert_eq!(manual.message(), "policy.fixed-factor-provider-mismatch");
+    let ranked = SolverSelection::resolve_available::<f64>(
+        wrong_profile,
+        SolverPlanningObjective::Fast,
+        1e-12,
+        1e-14,
+        NonZeroUsize::new(8).unwrap(),
+        std::slice::from_ref(&availability),
+    )
+    .unwrap_err();
+    assert!(
+        ranked
+            .message()
+            .contains("policy.fixed-factor-provider-mismatch")
+    );
+    let bound = structure
+        .with_coordinates(
+            2,
+            vec![
+                (AlgebraicBlock::Field(a), vec![1]),
+                (AlgebraicBlock::Field(b), vec![0]),
+            ],
+        )
+        .unwrap();
+    assert!(profile.require_structure(Some(&bound)).is_ok());
+    let changed = policy.identity_bytes().unwrap();
+    assert_ne!(
+        changed,
+        PreconditionerPolicy::Identity.identity_bytes().unwrap()
+    );
 }

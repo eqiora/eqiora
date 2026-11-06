@@ -28,7 +28,7 @@ impl CommonTimeRunRequest {
                 .as_ref()
                 .ok_or_else(|| invalid("midpoint Run omitted its admitted linear policy"))?;
             let checked = linear.checked_backend(backend, None)?;
-            let request = LinearSolveRequest::new(&checked, linear.solver);
+            let request = LinearSolveRequest::new(&checked, linear.solver.clone());
             let nonlinear = ode.nonlinear;
             ImplicitMidpointTimeBackend::new().solve_with_stages(
                 problem.initial_state(),
@@ -54,7 +54,7 @@ impl CommonTimeRunRequest {
                         initial.to_vec(),
                         NewtonOptions::time_stage(
                             nonlinear,
-                            linear.solver,
+                            &linear.solver,
                             plan.relative_tolerance(),
                             plan.absolute_tolerances(),
                         ),

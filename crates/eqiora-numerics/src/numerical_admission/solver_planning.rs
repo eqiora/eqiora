@@ -18,7 +18,7 @@ pub(crate) fn resolve_linear(
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
     let profile = planning_profile(
-        request,
+        &request,
         properties,
         complete_diagonal,
         size,
@@ -35,7 +35,7 @@ pub(crate) fn resolve_linear(
 }
 
 fn planning_profile(
-    request: CommonLinearRequest,
+    request: &CommonLinearRequest,
     properties: LinearOperatorProperties,
     complete_diagonal: Option<bool>,
     size: Option<eqiora_solver::SolverPlanningSize>,
@@ -68,7 +68,10 @@ fn planning_profile(
         Some(structure) => profile.with_structure(structure)?,
         None => profile,
     };
-    Ok(profile)
+    Ok(match request.requested_preconditioner() {
+        Some(policy) => profile.with_preconditioner(policy.clone()),
+        None => profile,
+    })
 }
 
 pub(super) fn resolve_typed_linear<S>(
@@ -97,7 +100,7 @@ where
             .capabilities()
             .require_problem(plan, S::DOMAIN, S::STORAGE, properties)?;
         profile.require_resources(plan, backend.provider(), S::DOMAIN, S::STORAGE)?;
-        let mut selected = NativeLinearPolicy::exact(plan, backend)?;
+        let mut selected = NativeLinearPolicy::exact(plan.clone(), backend)?;
         selected.planning_costs =
             vec![profile.estimate_cost("manual", plan, backend.provider(), S::DOMAIN, S::STORAGE)];
         selected.planning_profile = Some(profile);
@@ -129,15 +132,15 @@ where
         reference_backend,
         supplied_backend,
     )?;
-    NativeLinearPolicy::exact(decision.solver_plan(), backend)?.with_planning(&decision)
+    NativeLinearPolicy::exact(decision.solver_plan().clone(), backend)?.with_planning(&decision)
 }
 
 /// Only exact Jacobi requests need a new structural fact in this admission slice.
 /// Automatic selection retains its existing independently admitted profile.
-pub(super) fn requests_diagonal(request: CommonLinearRequest) -> bool {
+pub(super) fn requests_diagonal(request: &CommonLinearRequest) -> bool {
     request
-        .exact_request()
-        .is_some_and(|(plan, _)| plan.preconditioner() == PreconditionerPolicy::Jacobi)
+        .requested_preconditioner()
+        .is_some_and(|policy| matches!(policy, PreconditionerPolicy::Jacobi))
 }
 
 /// Ask the canonical operator's existing diagonal owner about structural availability.
@@ -165,7 +168,7 @@ pub(super) fn resolve_complex_linear(
     supplied_backend: &dyn LinearSolverBackend,
 ) -> Result<NativeLinearPolicy, Diagnostic> {
     let profile = planning_profile(
-        request,
+        &request,
         properties,
         complete_diagonal,
         size,
@@ -255,7 +258,7 @@ mod tests {
                     scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::SparseLu,
                     operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-                    preconditioner: PreconditionerPolicy::Identity,
+                    preconditioner: eqiora_solver::PreconditionerKind::Identity,
                     reduction: ReductionPolicy::Fast,
                     scalar_type: ScalarType::F64,
                 },
@@ -263,7 +266,7 @@ mod tests {
                     scalar_domain: eqiora_core::ScalarDomain::Real,
                     algorithm: LinearSolver::SparseLu,
                     operator_properties: LinearOperatorProperties::General,
-                    preconditioner: PreconditionerPolicy::Identity,
+                    preconditioner: eqiora_solver::PreconditionerKind::Identity,
                     reduction: ReductionPolicy::Fast,
                     scalar_type: ScalarType::F64,
                 },
@@ -317,12 +320,13 @@ mod tests {
         );
         let (plan, provider) = request.exact_request().unwrap();
         let request = CommonLinearRequest::exact(
-            plan.with_preconditioner(PreconditionerPolicy::Jacobi),
+            plan.clone()
+                .with_preconditioner(PreconditionerPolicy::Jacobi),
             provider,
         )
         .unwrap();
         let decision = resolve_linear(
-            request,
+            request.clone(),
             LinearOperatorProperties::General,
             Some(true),
             None,
@@ -334,7 +338,7 @@ mod tests {
         let checked = decision
             .checked_backend(&REFERENCE_LINEAR_SOLVER, None)
             .unwrap();
-        let error = LinearSolveRequest::new(&checked, decision.solver)
+        let error = LinearSolveRequest::new(&checked, decision.solver.clone())
             .solve(&system.linear_problem().unwrap())
             .unwrap_err();
         assert!(
@@ -356,7 +360,7 @@ mod tests {
         )
         .unwrap();
         assert!(!complete_diagonal(&absent).unwrap());
-        let error = LinearSolveRequest::new(&checked, decision.solver)
+        let error = LinearSolveRequest::new(&checked, decision.solver.clone())
             .solve(&absent.linear_problem().unwrap())
             .unwrap_err();
         assert!(error.message().contains("profile"), "{error}");
@@ -386,7 +390,7 @@ mod tests {
         ] {
             let request = exact(algorithm, reduction, provider);
             let decision = resolve_linear(
-                request,
+                request.clone(),
                 properties,
                 Some(false),
                 None,
@@ -395,7 +399,7 @@ mod tests {
                 &ResolveOnlySparseBackend,
             )
             .unwrap();
-            assert_eq!(decision.solver, request.exact_request().unwrap().0);
+            assert_eq!(&decision.solver, request.exact_request().unwrap().0);
             assert_eq!(decision.provider, provider);
             assert_eq!(decision.planning_objective, None);
             assert!(decision.planning_audit_is_coherent());
@@ -413,7 +417,7 @@ mod tests {
         );
         assert!(
             resolve_linear(
-                request,
+                request.clone(),
                 LinearOperatorProperties::SymmetricPositiveDefinite,
                 Some(true),
                 None,
@@ -434,7 +438,7 @@ mod tests {
         );
         assert!(
             resolve_linear(
-                request,
+                request.clone(),
                 LinearOperatorProperties::SymmetricIndefinite,
                 Some(true),
                 None,
@@ -446,7 +450,8 @@ mod tests {
         );
         let (plan, provider) = request.exact_request().unwrap();
         let jacobi = CommonLinearRequest::exact(
-            plan.with_preconditioner(PreconditionerPolicy::Jacobi),
+            plan.clone()
+                .with_preconditioner(PreconditionerPolicy::Jacobi),
             provider,
         )
         .unwrap();

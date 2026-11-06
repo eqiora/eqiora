@@ -7,6 +7,7 @@
 //! verification.
 
 mod bicgstab;
+mod block_schur;
 mod candidate;
 mod cg;
 mod complex;
@@ -114,7 +115,10 @@ impl FaerLinearSolver {
                 LinearOperatorProperties::HermitianPositiveDefinite,
             ),
         ] {
-            for preconditioner in [PreconditionerPolicy::Identity, PreconditionerPolicy::Jacobi] {
+            for preconditioner in [
+                eqiora_solver::PreconditionerKind::Identity,
+                eqiora_solver::PreconditionerKind::Jacobi,
+            ] {
                 combinations.push(SolverCapability {
                     scalar_domain,
                     algorithm,
@@ -150,11 +154,24 @@ impl FaerLinearSolver {
                     scalar_domain,
                     algorithm: LinearSolver::SparseLu,
                     operator_properties,
-                    preconditioner: PreconditionerPolicy::Identity,
+                    preconditioner: eqiora_solver::PreconditionerKind::Identity,
                     reduction: ReductionPolicy::Fast,
                     scalar_type: ScalarType::F64,
                 });
             }
+        }
+        for operator_properties in [
+            LinearOperatorProperties::General,
+            LinearOperatorProperties::SymmetricIndefinite,
+        ] {
+            combinations.push(SolverCapability {
+                scalar_domain: ScalarDomain::Real,
+                algorithm: LinearSolver::BiConjugateGradientStabilized,
+                operator_properties,
+                preconditioner: eqiora_solver::PreconditionerKind::UpperDiagonalSchur,
+                reduction: ReductionPolicy::Fast,
+                scalar_type: ScalarType::F64,
+            });
         }
         SolverCapabilities::exact(combinations).expect("faer exact capability set is nonempty")
     }
@@ -162,7 +179,7 @@ impl FaerLinearSolver {
 
 fn require_serial_execution<S>(
     execution: &dyn ReplicatedLinearExecution<S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
 ) -> Result<(), Diagnostic> {
     if execution.provider() != eqiora_solver::SERIAL_LINEAR_EXECUTION.provider()
         || execution.report() != ExecutionReport::host_serial()
@@ -218,6 +235,7 @@ impl LinearSolverBackend for FaerLinearSolver {
         plan: SolverPlan,
         execution: &dyn ReplicatedLinearExecution,
     ) -> Result<LinearSolution, Diagnostic> {
+        let plan = &plan;
         let algorithm = format!("{:?}", plan.algorithm());
         let _linear = eqiora_execution::telemetry_span!(linear_solve(
             &algorithm,
@@ -231,6 +249,12 @@ impl LinearSolverBackend for FaerLinearSolver {
             problem.scalar_type(),
             problem.properties(),
         )?;
+        if matches!(
+            plan.preconditioner(),
+            PreconditionerPolicy::UpperDiagonalSchur(_)
+        ) {
+            return block_schur::solve(problem, plan, execution);
+        }
         let inverse_diagonal = inverse_diagonal(problem, plan)?;
         match plan.algorithm() {
             LinearSolver::ConjugateGradient => {
@@ -490,7 +514,7 @@ mod tests {
         let error = FaerLinearSolver
             .capabilities()
             .require_problem(
-                unsupported,
+                &unsupported,
                 eqiora_core::ScalarDomain::Real,
                 ScalarType::F64,
                 LinearOperatorProperties::SymmetricIndefinite,
@@ -511,7 +535,7 @@ mod tests {
         let error = FaerLinearSolver
             .capabilities()
             .require_problem(
-                unsupported,
+                &unsupported,
                 eqiora_core::ScalarDomain::Complex,
                 ScalarType::F64,
                 LinearOperatorProperties::ComplexSymmetric,

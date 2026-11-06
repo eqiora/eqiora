@@ -515,9 +515,23 @@ removal = "withdraw the two point-boundary owners and lower by two only when an 
 
 [[public_surface]]
 crate = "eqiora-solver"
-ceiling = 48
-reason = "the four-item bounded host-serial planning surface owns deterministic resolution over one exact three-candidate catalog, preserving registered evidence and provider identity, exact controls, profile and capability admission, stable reasons and ranking, and one selected request without adding a registry, option bag, wire, Python, Studio, or generalized solver service"
-removal = "withdraw the four planning items and lower this ceiling to 44 when an already-counted typed solver-plan owner preserves the same exact catalog, evidence/provider binding, ordered rejection trace, objective ranking, borrowed-problem identity, and exactly-once execution boundary without weakening the bounded claim"
+ceiling = 53
+reason = """
+The existing 48 declarations include bounded deterministic solver planning with
+exact controls, provider/evidence identity, admission, rejection reasons and ranking.
+Five additional declarations support the implemented fixed structured composition:
+PreconditionerKind classifies capabilities without discarding configured policy;
+UpperDiagonalSchurConfig owns validated grouping, factors and construction limits;
+FixedFactorizationChoice distinguishes stationary factors from tolerance-controlled
+solves; FixedLinearPreconditioner binds a cross-crate fixed action to exact policy;
+solve_bicgstab_with_preconditioner lets providers reuse the existing recurrence and
+original-coordinate acceptance. Manual and explicitly configured ranked requests
+share one policy and execution path. Provider admission and policy equality remain
+mandatory. Construction limits do not imply bounded factor fill or process RSS.
+This allowance is only for these five implemented declarations, not speculative
+variants, a recursive solver DSL, or another solver registry.
+"""
+removal = "withdraw the four existing planning items and lower by four when an already-counted typed solver-plan owner preserves exact catalog/evidence/provider binding, ordered reasons/ranking, borrowed-problem identity and exactly-once execution; remove or consolidate each of the five fixed-composition declarations when its implemented consumers disappear or a demonstrated shared owner preserves its typed invariant without duplicate policy or recurrence, lowering the ceiling for each removed declaration"
 
 [[public_surface]]
 crate = "eqiora-spatial-distribution"

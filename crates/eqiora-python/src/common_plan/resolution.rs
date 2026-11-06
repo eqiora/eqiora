@@ -129,7 +129,7 @@ pub(super) fn resolve_plan(
                     &program,
                     policy,
                     backend,
-                    solve_policy.as_ref().map(|(native, _)| *native),
+                    solve_policy.as_ref().map(|(native, _)| native.clone()),
                     &FaerLinearSolver,
                 )
             }
@@ -424,14 +424,14 @@ fn solve_policy(
     solve: &Bound<'_, PyAny>,
 ) -> PyResult<(CommonSolvePolicy, RequestedSolveHandle)> {
     Ok(if let Ok(linear) = solve.extract::<Py<PyLinear>>() {
-        let native = linear.borrow(py).native;
+        let native = linear.borrow(py).native.clone();
         (
             CommonSolvePolicy::Linear(native),
             RequestedSolveHandle::Linear(linear),
         )
     } else if let Ok(newton) = solve.extract::<Py<PyNewton>>() {
         let newton_ref = newton.borrow(py);
-        let linear = newton_ref.linear.borrow(py).native;
+        let linear = newton_ref.linear.borrow(py).native.clone();
         let native = CommonSolvePolicy::Newton {
             nonlinear: newton_ref.native,
             linear,

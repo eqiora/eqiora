@@ -396,18 +396,18 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
     };
     let q1 = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
-        linear,
+        linear.clone(),
     );
     let repeat = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::Q1),
-        linear,
+        linear.clone(),
     );
     let exact = resolve_scalar(
         CommonMethodRequest::Exact {
             spatial: CommonSpatialPolicy::Q1,
             formulation: FormulationKind::PrimalGalerkin,
         },
-        linear,
+        linear.clone(),
     );
     let tpfa = resolve_scalar(
         CommonMethodRequest::Uniform(CommonSpatialPolicy::CellCenteredTpfa),
@@ -480,7 +480,7 @@ pub(super) fn common_scalar_plan_owns_exact_lineage_and_executes_without_repeate
             &model,
             resources(&geometry),
             CommonSpatialPolicy::MiniP1,
-            CommonSolvePolicy::Linear(linear),
+            CommonSolvePolicy::Linear(linear.clone()),
             None,
             None,
             &ResolveOnlyBackend,
@@ -524,7 +524,7 @@ pub(super) fn common_elasticity_plan_consumes_exact_mesh_and_model_meaning() {
             model,
             resources(&geometry),
             CommonSpatialPolicy::Q1,
-            CommonSolvePolicy::Linear(solve),
+            CommonSolvePolicy::Linear(solve.clone()),
             None,
             None,
             &ResolveOnlyBackend,
@@ -1189,7 +1189,7 @@ pub(super) fn scalar_linear_blocks_execute_and_replay_complete_one_two_three_fie
         );
         let old = String::from_utf8(bytes)
             .unwrap()
-            .replace("eqiora.common-result/v27", "eqiora.common-result/v2");
+            .replace("eqiora.common-result/v28", "eqiora.common-result/v2");
         assert!(crate::CommonResult::from_bytes(old.as_bytes(), &replayed).is_err());
     }
 }

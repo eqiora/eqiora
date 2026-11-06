@@ -86,7 +86,7 @@ pub(super) fn select_scalar_operator(
         .ok_or_else(|| invalid_realization("scalar elliptic portable placement is absent"))?;
     let discretization = domain_node.discretization();
     let space = field_node.space();
-    let solver = linear.plan();
+    let solver = linear.plan().clone();
     let scalar_type = system.scalar_type();
     let vector_layout = system.partition();
     Ok(SingleFieldGraphSelection {

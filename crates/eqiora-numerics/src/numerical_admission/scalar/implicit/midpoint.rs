@@ -85,7 +85,7 @@ where
             .admission
             .linear
             .checked_backend(backend, Some(&structure))?;
-        let linear = LinearSolveRequest::new(&checked, self.plan.linear());
+        let linear = LinearSolveRequest::new(&checked, self.plan.linear().clone());
         let (accepted, evidence) = solve_damped_newton(
             self.midpoint_seed(initial),
             NewtonOptions::time_stage(
@@ -103,9 +103,12 @@ where
                 )
             },
             |_, point| {
-                point
-                    .assembly
-                    .solve_correction(0, linear, self.plan.admission.linear.workers, None)
+                point.assembly.solve_correction(
+                    0,
+                    linear.clone(),
+                    self.plan.admission.linear.workers,
+                    None,
+                )
             },
             |endpoint, current| {
                 let (state, rate) = self.stage_coordinates(initial, endpoint, step_s);

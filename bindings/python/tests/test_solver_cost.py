@@ -97,7 +97,7 @@ def test_exact_manual_controls_survive_cost_forecasts_and_replay():
     plan = q.resolve(model, solve=_manual(cost=cost))
     replay = q.Plan.from_bytes(plan.to_bytes())
     assert replay.solve.algorithm == "bicgstab"
-    assert replay.solve.preconditioner == "identity"
+    assert replay.solve.preconditioner.kind == "identity"
     assert replay.solve.reduction == "reproducible"
     assert replay.solve.backend == "eqiora.reference"
     assert replay.solve.maximum_iterations == 100

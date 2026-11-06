@@ -14,7 +14,7 @@ pub(super) struct InitialResidual<S> {
 pub(super) fn initial_residual<S: Scalar + ComplexFloat<Real = f64> + Sync>(
     provider: SolverProvider,
     problem: &LinearProblem<'_, S>,
-    plan: SolverPlan,
+    plan: &SolverPlan,
     execution: &dyn ReplicatedLinearExecution<S>,
 ) -> Result<InitialResidual<S>, Diagnostic> {
     let dimension = problem.operator().columns();
@@ -45,7 +45,7 @@ pub(super) fn initial_residual<S: Scalar + ComplexFloat<Real = f64> + Sync>(
             execution.provider(),
             execution.report(),
             problem.operator().orientation(),
-            plan,
+            plan.clone(),
             ConvergenceReason::InitialResidualSatisfied,
             0,
             initial_residual_norm,

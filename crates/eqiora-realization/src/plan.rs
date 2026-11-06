@@ -56,8 +56,8 @@ impl RealizationPlan {
 
     /// Solver choice.
     #[must_use]
-    pub const fn solver(&self) -> SolverPlan {
-        self.solver
+    pub const fn solver(&self) -> &SolverPlan {
+        &self.solver
     }
 
     /// Deployment target.

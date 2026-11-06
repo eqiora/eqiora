@@ -162,25 +162,46 @@ pub(crate) fn select_exact_model(
     // multiple implementations do not make the mathematical Model ambiguous.
     let cell_centered =
         *request == CommonSpatialRequest::Uniform(CommonSpatialPolicy::CellCentered);
-    if scalar.is_ok() && !cell_centered {
+    let mini_pair = *request == CommonSpatialRequest::Uniform(CommonSpatialPolicy::MiniP1);
+    if scalar.is_ok() && !cell_centered && !mini_pair {
         return scalar;
     }
     let stokes = recognize_steady_incompressible_stokes_geometry_mathematics(program);
+    // The shared projection currently has no mixed pressure-gauge row. Retain
+    // the exact constrained projection when its mathematical owner requires
+    // that row; open mixed systems keep their existing shared projection.
+    let constrained_mixed = mini_pair
+        && stokes
+            .as_ref()
+            .ok()
+            .and_then(|model| {
+                crate::canonical_stokes::steady_stokes_algebraic_structure(model).ok()
+            })
+            .is_some_and(|structure| !structure.constraints().is_empty());
+    if scalar.is_ok() && !cell_centered && !constrained_mixed {
+        return scalar;
+    }
     if stokes.is_ok() && (transient.is_ok() || transient_geometry.is_ok()) {
         return Err(invalid(
             "Model has incompatible steady and transient mathematical projections",
         ));
     }
     if stokes.is_ok() {
-        let NativeMeshResources::GmshSimplicial {
+        let (NativeMeshResources::GmshSimplicial {
             geometry,
             mesh,
             correspondence,
             ..
-        } = resources
+        }
+        | NativeMeshResources::AffineTriangleSimplicial {
+            geometry,
+            mesh,
+            correspondence,
+            ..
+        }) = resources
         else {
             return Err(invalid(
-                "steady incompressible mixed form requires authenticated Gmsh simplicial resources",
+                "steady incompressible mixed form requires authenticated affine-triangle resources",
             ));
         };
         return SteadyStokesGeometryBinding2d::new_authenticated(
@@ -354,5 +375,5 @@ pub(crate) fn require_policy_compatibility(
     }
     linear
         .capabilities
-        .require_problem(linear.solver, scalar_domain, ScalarType::F64, properties)
+        .require_problem(&linear.solver, scalar_domain, ScalarType::F64, properties)
 }

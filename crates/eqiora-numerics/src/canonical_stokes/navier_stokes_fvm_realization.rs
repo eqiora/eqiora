@@ -632,7 +632,7 @@ impl PreparedResolvedTransientCellCenteredRun2d<'_> {
                 &operator,
                 numerical.clone(),
                 self.resolved.plan().nonlinear(),
-                self.resolved.plan().fieldwise().solver(),
+                self.resolved.plan().fieldwise().solver().clone(),
                 solver,
             )?;
             let evidence = accept_collocated_step(

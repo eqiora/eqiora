@@ -217,7 +217,7 @@ fn solve_finalized(
     let solution = REFERENCE_LINEAR_SOLVER
         .solve(
             &problem.linear_problem().expect("finalized linear problem"),
-            problem.solver_plan(),
+            problem.solver_plan().clone(),
         )
         .expect("reference CG solve");
     problem.finish(solution).expect("accepted Q1 field")

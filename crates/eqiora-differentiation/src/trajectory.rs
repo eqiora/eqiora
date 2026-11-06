@@ -157,7 +157,13 @@ pub fn discrete_trajectory_adjoint<
         {
             *total += future;
         }
-        let adjoint = adjoint_gradient(step.relation(), &unknown, &parameter, properties, solver)?;
+        let adjoint = adjoint_gradient(
+            step.relation(),
+            &unknown,
+            &parameter,
+            properties,
+            solver.clone(),
+        )?;
         let (solve, gradient) = adjoint.into_parts();
         state_cotangent.copy_from_slice(&gradient[..state_dimension]);
         for (total, contribution) in parameter_gradient
@@ -223,7 +229,7 @@ pub fn discrete_trajectory_sensitivity<
     direction.extend_from_slice(parameter_tangent);
     let mut results = Vec::with_capacity(steps.len());
     for step in steps {
-        let sensitivity = forward_output_sensitivity(step, &direction, properties, solver)?;
+        let sensitivity = forward_output_sensitivity(step, &direction, properties, solver.clone())?;
         let mut next = vec![0.; state_dimension];
         step.relation().relation().state_output().jvp(
             sensitivity.state().values(),

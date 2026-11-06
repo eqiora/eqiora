@@ -14,7 +14,7 @@ mod spatial_assembly;
 
 pub use protocol::{
     AdmissionRecordV1, CollectivePhaseV1, CollectiveStepV1, DistributedProtocolFailureV1,
-    MpiCollectiveTraceV1, OwnedGatherPlanV1, PhaseStatusV1, ProducerReportSummaryV2,
+    MpiCollectiveTraceV1, OwnedGatherPlanV1, PhaseStatusV1, ProducerReportSummaryV3,
     evaluate_admission, evaluate_phase_statuses,
 };
 

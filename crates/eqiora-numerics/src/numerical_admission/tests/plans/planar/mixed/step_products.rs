@@ -149,7 +149,7 @@ fn mixed_step_products_preserve_certified_operator_properties() {
             }
             let before = steps[0].1.state().to_bytes().unwrap();
             let relation = product.relation();
-            let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear());
+            let request = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear().clone());
             let rhs = relation
                 .design_jacobian()
                 .iter()

@@ -7,8 +7,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, ScalarType};
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 
 use super::*;
@@ -217,7 +217,7 @@ fn step_duration_and_shared_imported_mesh_are_closed_choices() {
             plan.time_step().clone(),
             plan.scaling().clone(),
             plan.operator_properties(),
-            plan.solver(),
+            plan.solver().clone(),
             plan.target(),
             plan.schedule(),
         )
@@ -245,7 +245,7 @@ fn quotient_requires_equal_trace_signature_and_shared_dof_scale() {
             plan.time_step().clone(),
             fixture.scaling(2.0),
             plan.operator_properties(),
-            plan.solver(),
+            plan.solver().clone(),
             plan.target(),
             plan.schedule(),
         )
@@ -286,7 +286,7 @@ fn eliminated_state_is_represented_but_never_an_algebraic_block() {
             plan.time_step().clone(),
             plan.scaling().clone(),
             plan.operator_properties(),
-            plan.solver(),
+            plan.solver().clone(),
             plan.target(),
             plan.schedule(),
         )
@@ -308,7 +308,7 @@ fn eliminated_state_is_represented_but_never_an_algebraic_block() {
             wrong_space_step,
             plan.scaling().clone(),
             plan.operator_properties(),
-            plan.solver(),
+            plan.solver().clone(),
             plan.target(),
             plan.schedule(),
         )
@@ -555,7 +555,7 @@ fn mixed_simplicial_capabilities(spatial_dimension: NonZeroUsize) -> Realization
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora_solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         }])

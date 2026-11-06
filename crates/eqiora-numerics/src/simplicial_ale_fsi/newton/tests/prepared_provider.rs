@@ -102,7 +102,7 @@ impl PreparedLinearSolver for Prepared {
             observations.structure = Some(structure.clone());
         }
         observations.solves += 1;
-        let result = DenseGeneralSolver.solve(problem, self.plan);
+        let result = DenseGeneralSolver.solve(problem, self.plan.clone());
         if result.is_err() {
             self.failed = true;
         }

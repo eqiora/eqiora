@@ -5,8 +5,8 @@ use eqiora_core::diagnostic::codes;
 use eqiora_core::entity::kinds;
 use eqiora_core::{DimExponents, DynQuantity, Id, OntologyId, ScalarType};
 use eqiora_solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, ReductionPolicy,
-    SolverCapabilities, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, ReductionPolicy, SolverCapabilities, SolverCapability,
+    SolverPlan,
 };
 
 use super::*;
@@ -44,7 +44,7 @@ fn ale_rejects_multiple_trace_quotients_before_projection() {
         coupled.time_step().clone(),
         coupled.scaling().clone(),
         coupled.operator_properties(),
-        coupled.solver(),
+        coupled.solver().clone(),
         coupled.target(),
         coupled.schedule(),
     )
@@ -643,7 +643,7 @@ fn capabilities_for_dimension(
         scalar_domain: eqiora_core::ScalarDomain::Real,
         algorithm: LinearSolver::BiConjugateGradientStabilized,
         operator_properties: LinearOperatorProperties::General,
-        preconditioner: PreconditionerPolicy::Identity,
+        preconditioner: eqiora_solver::PreconditionerKind::Identity,
         reduction: ReductionPolicy::Reproducible,
         scalar_type: ScalarType::F64,
     }];
@@ -652,7 +652,7 @@ fn capabilities_for_dimension(
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::ConjugateGradient,
             operator_properties: LinearOperatorProperties::SymmetricPositiveDefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora_solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         });

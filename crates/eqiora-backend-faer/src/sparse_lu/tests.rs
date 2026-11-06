@@ -165,9 +165,9 @@ fn method_check_rejects_globally_accepted_initial_and_zero_residual_candidates()
         .with_initial_guess(&initial)
         .unwrap()
         .with_candidate_check(&requires_nonzero);
-    let solved = FaerLinearSolver.solve(&problem, policy).unwrap();
+    let solved = FaerLinearSolver.solve(&problem, policy.clone()).unwrap();
     assert_eq!(solved.report().completed_iterations(), 1);
-    assert_eq!(solved.report().solver_plan(), policy);
+    assert_eq!(solved.report().solver_plan(), &policy);
     assert!(requires_nonzero(solved.values()).unwrap());
 
     let rejects = |_: &[f64]| Ok(false);

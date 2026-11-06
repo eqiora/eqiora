@@ -65,7 +65,7 @@ impl LinearSolveRequest<'_, f64> {
             .iter()
             .map(|[real, imaginary]| Complex64::new(*real, *imaginary))
             .collect::<Vec<_>>();
-        let (values, report) = LinearSolveRequest::new(backend, self.plan)
+        let (values, report) = LinearSolveRequest::new(backend, self.plan.clone())
             .solve_canonical_oriented(&complex, &rhs, orientation)?
             .into_parts();
         LinearSolution::new(

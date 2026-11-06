@@ -90,13 +90,13 @@ for name, linear, algorithm, reduction, provider in requests:
     plan = resolve(linear)
     assert plan.solve.linear.provider == provider
     assert plan.solve.linear.algorithm == algorithm
-    assert plan.solve.linear.preconditioner == "identity"
+    assert plan.solve.linear.preconditioner == eqiora.solve.Preconditioner.Identity
     assert plan.solve.linear.reduction == reduction
     replay = eqiora.Plan.from_bytes(plan.to_bytes())
     assert replay.identity == plan.identity
     assert replay.solve.linear.provider == provider
     assert replay.solve.linear.algorithm == algorithm
-    assert replay.solve.linear.preconditioner == "identity"
+    assert replay.solve.linear.preconditioner == eqiora.solve.Preconditioner.Identity
     assert replay.solve.linear.reduction == reduction
     v, p = replay.capability.velocity, replay.capability.pressure
     velocity = np.tile([1.0, 0.0], (mesh.vertex_count, 1))

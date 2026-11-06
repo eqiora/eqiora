@@ -23,8 +23,8 @@ use eqiora::realization::{
 };
 use eqiora::sem::KernelProgram;
 use eqiora::solver::{
-    LinearOperatorProperties, LinearSolver, PreconditionerPolicy, REFERENCE_LINEAR_SOLVER,
-    ReductionPolicy, SolverCapability, SolverPlan,
+    LinearOperatorProperties, LinearSolver, REFERENCE_LINEAR_SOLVER, ReductionPolicy,
+    SolverCapability, SolverPlan,
 };
 use eqiora_meshing::CartesianMesh;
 use eqiora_numerics::{
@@ -247,7 +247,7 @@ fn elasticity_finalization_requires_an_admitted_spd_operator() {
             scalar_domain: eqiora_core::ScalarDomain::Real,
             algorithm: LinearSolver::MinimumResidual,
             operator_properties: LinearOperatorProperties::SymmetricIndefinite,
-            preconditioner: PreconditionerPolicy::Identity,
+            preconditioner: eqiora::solver::PreconditionerKind::Identity,
             reduction: ReductionPolicy::Reproducible,
             scalar_type: ScalarType::F64,
         },

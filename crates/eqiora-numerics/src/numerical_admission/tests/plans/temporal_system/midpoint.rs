@@ -90,7 +90,7 @@ fn exercise<S: Coefficient + Send + Sync>(
         let canonical =
             CanonicalCsrSystemView::new(&partials.state, &rhs, LinearOperatorProperties::General)
                 .unwrap();
-        let derivative = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear())
+        let derivative = LinearSolveRequest::new(&REFERENCE_LINEAR_SOLVER, plan.linear().clone())
             .solve_canonical_oriented(&canonical, &rhs, LinearOperatorOrientation::Normal)
             .unwrap();
         assert_eq!(partials.observations.len(), 3);
