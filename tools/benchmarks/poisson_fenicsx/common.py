@@ -120,6 +120,4 @@ def worker_arguments():
     args = parser.parse_args()
     if args.cells not in declared_levels(args.dimension):
         parser.error("mesh level has no declared reference for this dimension")
-    if args.dimension == 3 and args.mode != "correctness-only":
-        parser.error("3D comparison currently supports correctness-only mode")
     return args

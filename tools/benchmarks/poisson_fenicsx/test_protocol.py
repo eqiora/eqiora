@@ -73,14 +73,16 @@ class ProtocolTests(unittest.TestCase):
         actual = q1_vertex_dof_coordinates(rows[::-1], 8, 3)
         np.testing.assert_array_equal(actual, np.array(list(itertools.product((0., 1.), repeat=3)))[::-1])
 
-    def test_3d_scope_rejects_undeclared_level_and_benchmark_mode(self):
+    def test_3d_modes_preserve_declared_level_bounds(self):
         base = ["worker", "--dimension", "3", "--cells", "4", "--mode",
                 "correctness-only", "--output", "result.json"]
-        with patch("sys.argv", base):
-            self.assertEqual(worker_arguments().dimension, 3)
-        invalid_level = base.copy(); invalid_level[4] = "32"
-        invalid_mode = base.copy(); invalid_mode[6] = "benchmark"
-        for invalid in (invalid_level, invalid_mode):
+        for mode in ("correctness-only", "benchmark"):
+            for cells in (4, 8, 16):
+                arguments = base.copy(); arguments[4] = str(cells); arguments[6] = mode
+                with patch("sys.argv", arguments):
+                    args = worker_arguments()
+                self.assertEqual((args.dimension, args.cells, args.mode), (3, cells, mode))
+            invalid = base.copy(); invalid[4] = "32"; invalid[6] = mode
             with patch("sys.argv", invalid), redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 worker_arguments()
 
