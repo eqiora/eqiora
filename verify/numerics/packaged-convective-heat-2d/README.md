@@ -23,7 +23,7 @@ and hand-written forms and offline package compilation.
 
 The canonical reference owns exact rational affine temperatures and numerical
 bounds. This case does not duplicate its oracle or set tolerances from Eqiora
-output. The planned result-only check compares all nine physical coefficients
+output. The result-only check compares all nine physical coefficients
 against its predeclared E, exact essential values and reference free-row residual.
 Coordinates, units, finite binary64 values and unique complete node coverage are
 checked as well. Authored boundary integrals expose four physical outward heat
@@ -90,6 +90,8 @@ Python owner remains a focused product check over the same frozen reference.
 
 The [registered regression report](evidence/2026-11-06/regression/8b3770963/report.json)
 passed all 14 tests in this owner, including the four imported convective cases.
-Its four additional public Runs are recorded separately from the eight initial
-scientific witnesses. The canonical reference's mathematical metadata, including
+Its four additional convective witness Runs are recorded separately from the eight initial
+scientific witnesses. Other steady and transient heat tests in the 14-test owner
+also execute and replay Runs; four is not the total execution count of that owner.
+The canonical reference's mathematical metadata, including
 its `preparation_only` marker, remains unchanged in actual accepted reports.
