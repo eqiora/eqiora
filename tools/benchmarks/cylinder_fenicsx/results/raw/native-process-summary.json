@@ -1,0 +1,69 @@
+{
+  "actual_harness_revision": "1c4bcab72f9acdaca14f149a43e3c4d28b63df25",
+  "source_clean_before_launch": true,
+  "command": [
+    "taskset",
+    "-c",
+    "12",
+    "/data/nk523/.cache/eqiora/poisson-3d-release-prep/venv/bin/python",
+    "-I",
+    "/data/nk523/.cache/eqiora/cylinder-fenicsx-worktree/tools/benchmarks/cylinder_fenicsx/eqiora_case.py",
+    "--reference-manifest",
+    "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1/reference-manifest.json",
+    "--reference-sha256",
+    "85ef07c5e0dddc079609eba03cc27e438817bc7b752306cbda966bba6f66b5c6",
+    "--mode",
+    "correctness-only",
+    "--output",
+    "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1/result.json",
+    "--wheel",
+    "/data/nk523/.cache/eqiora/poisson-3d-release-prep/artifacts/eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    "--revision",
+    "24320f878b2c895eacf92d6d1494c388f2d9f59e",
+    "--build-profile",
+    "release"
+  ],
+  "artifact": {
+    "actual_producer_source": "24320f878b2c895eacf92d6d1494c388f2d9f59e",
+    "wheel": {
+      "path": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/artifacts/eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "filename": "eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "kind": "wheel",
+      "python": "3.11",
+      "abi": "abi3",
+      "platform": "manylinux_2_17_x86_64",
+      "size": 17099176,
+      "sha256": "4e08e0aca402f46c561d64c686f1df322c6f6f368ad0562da489a2d572b18257"
+    },
+    "receipt_sha256": "e6c5059b62759f39f385e261a4641b51e234c07d5548b1d6cbe105baf80f5672"
+  },
+  "reference_manifest_sha256": "85ef07c5e0dddc079609eba03cc27e438817bc7b752306cbda966bba6f66b5c6",
+  "started_utc": "2026-11-06T02:03:51.450509+00:00",
+  "expected_eqiora_calls": {
+    "cold_candidate": 1,
+    "profile_diagnostic": 1,
+    "warmups": 0,
+    "timed_samples": 0
+  },
+  "scope": "one correctness-only Eqiora worker; no retry, reference recalibration or performance claim",
+  "pid": 3699160,
+  "terminal_exit_code": 0,
+  "finished_utc": "2026-11-06T02:03:59.087547+00:00",
+  "record_kind": "explicit projection of original native process receipt; not original raw bytes",
+  "original_receipt_sha256": "44fb06bfd5b956654ff4b7d33628a49cca83c488c4f9728f17a254a5ae430c98",
+  "omitted_machine_local_fields": [
+    "environment_controls.LD_LIBRARY_PATH"
+  ],
+  "environment_controls": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "RAYON_NUM_THREADS": "1",
+    "BLIS_NUM_THREADS": "1",
+    "CUDA_VISIBLE_DEVICES": "",
+    "PETSC_OPTIONS": null,
+    "TMPDIR": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1",
+    "XDG_CACHE_HOME": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1/cache"
+  },
+  "inherited_loader_path_present": true
+}

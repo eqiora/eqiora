@@ -1,0 +1,257 @@
+{
+  "status": "single-shared-affine-mesh correctness qualified after primary review",
+  "claim": "empirical external MINI velocity/pressure/force agreement on the stated polygonal domain",
+  "continuum_convergence_claim": false,
+  "timing_readiness_claim": false,
+  "performance_claim": false,
+  "reference_harness_revision": "d37e282dda3d4ff33633570896fb897008c7dda6",
+  "candidate_and_audit_harness_revision": "1c4bcab72f9acdaca14f149a43e3c4d28b63df25",
+  "actual_optimized_producer_source": "24320f878b2c895eacf92d6d1494c388f2d9f59e",
+  "wheel": {
+    "path": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/artifacts/eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    "filename": "eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    "kind": "wheel",
+    "python": "3.11",
+    "abi": "abi3",
+    "platform": "manylinux_2_17_x86_64",
+    "size": 17099176,
+    "sha256": "4e08e0aca402f46c561d64c686f1df322c6f6f368ad0562da489a2d572b18257"
+  },
+  "frozen_reference_manifest_sha256": "85ef07c5e0dddc079609eba03cc27e438817bc7b752306cbda966bba6f66b5c6",
+  "mesh": {
+    "vertices": 2386,
+    "cells": 4512,
+    "digest": "806d3a7a0eaf34a427de9525a1e633b6871424acc85cad5cd2d43f2f84a8a57b",
+    "geometry_digest": "c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14",
+    "dofs": {
+      "total": 16182,
+      "free": 15694,
+      "stored_algebraic": 15694
+    }
+  },
+  "terminal_exit_codes": {
+    "external_reference_batch": 0,
+    "native_candidate_worker": 0,
+    "assembly_only_audit": 0
+  },
+  "execution_counts": {
+    "external_reference_solves": 3,
+    "eqiora_cold_candidate_calls": 1,
+    "eqiora_separate_profile_calls": 1,
+    "audit_pde_solves": 0,
+    "warmups": 0,
+    "timed_samples": 0
+  },
+  "frozen_residual_control": {
+    "m": 40,
+    "epsilon": 2.220446049250313e-16,
+    "gamma": 8.881784197001331e-15,
+    "scale_D": 1513.4640967294492,
+    "absolute_scaled_residual_ceiling": 1.3442261497060517e-09
+  },
+  "frozen_metrics": {
+    "velocity": {
+      "input_scale": 0.3,
+      "reference_amplitude": 0.22161329249001155,
+      "scale": 0.3,
+      "external_spread": 1.6032163370597473e-15,
+      "tolerance": 4.470348358154297e-09,
+      "broad_cap": 3e-05,
+      "mutant_distance": 0.00016018497258877052,
+      "separation_cap": 8.009248629438525e-06
+    },
+    "pressure": {
+      "input_scale": 0.0007317073170731707,
+      "reference_amplitude": 0.0216787185834004,
+      "scale": 0.0216787185834004,
+      "external_spread": 1.1576985262638428e-16,
+      "tolerance": 3.230380800873101e-10,
+      "broad_cap": 2.1678718583400403e-06,
+      "mutant_distance": 0.0007317073170731707,
+      "separation_cap": 3.6585365853658535e-05
+    },
+    "force_x": {
+      "input_scale": 0.0003,
+      "reference_amplitude": 0.0063513052173370345,
+      "scale": 0.0063513052173370345,
+      "external_spread": 3.209238430557093e-17,
+      "tolerance": 9.464182283486477e-11,
+      "broad_cap": 6.351305217337035e-07,
+      "mutant_distance": 0.0003,
+      "separation_cap": 1.4999999999999999e-05
+    },
+    "force_y": {
+      "input_scale": 0.0003,
+      "reference_amplitude": 6.226553469607031e-05,
+      "scale": 0.0003,
+      "external_spread": 2.7538735181131813e-17,
+      "tolerance": 4.4703483581542965e-12,
+      "broad_cap": 3e-08,
+      "mutant_distance": 0.0003,
+      "separation_cap": 1.4999999999999999e-05
+    }
+  },
+  "falsifiers_rejected": [
+    "zero_velocity",
+    "omit_bubbles",
+    "zero_pressure",
+    "pressure_shift",
+    "zero_drag",
+    "reverse_drag",
+    "shift_drag",
+    "shift_lift"
+  ],
+  "native_accuracy": {
+    "frozen_reference_manifest_sha256": "85ef07c5e0dddc079609eba03cc27e438817bc7b752306cbda966bba6f66b5c6",
+    "agreement": {
+      "velocity": 8.641363537528484e-16,
+      "pressure": 3.2091440981155367e-16,
+      "force_x": 1.734723475976807e-17,
+      "force_y": 9.934002405398434e-18
+    },
+    "scaled_residual_inf": 2.2870594307278225e-14,
+    "scaled_residual_ceiling": 1.3442261497060517e-09,
+    "analytic_checks": {
+      "trace_max_error": 0.0,
+      "trace_arithmetic_allowance": 1.7053025658242404e-14,
+      "inlet_flux": -0.08171626297577854,
+      "outlet_flux": 0.08171626297577853,
+      "analytic_discrete_inlet_flux": -0.08171626297577854,
+      "flux_arithmetic_allowance": 1.1885958883794954e-13,
+      "net_flux": -1.3877787807814457e-17,
+      "weak_continuity_flux_bound": 3.945009208230214e-07
+    },
+    "physical_rms": {
+      "velocity": 0.22161329249001163,
+      "pressure": 0.02167871858340009
+    },
+    "force_on_domain": [
+      -0.006351305217337017,
+      -6.226553469608025e-05
+    ],
+    "force_on_selection": [
+      0.006351305217337017,
+      6.226553469608025e-05
+    ],
+    "scope": "shared affine-mesh empirical agreement; no continuum-drag or timing claim"
+  },
+  "independent_global_essential_reaction_on_domain": [
+    1.431146867680866e-17,
+    -6.322253918306098e-18
+  ],
+  "independent_global_reaction_allowance": 9.622377664788123e-10,
+  "independent_ufl_boundary_fluxes": {
+    "inlet": -0.0817162629757782,
+    "outlet": 0.08171626297577816
+  },
+  "native_profile": {
+    "required_phases_available": false,
+    "phase_inventory": [
+      {
+        "path": [
+          "run"
+        ],
+        "fields": {
+          "family": "steady_stokes"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "setup"
+        ],
+        "fields": {
+          "role": "backend_resolution"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve"
+        ],
+        "fields": {},
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve",
+          "linear_solve"
+        ],
+        "fields": {
+          "linear_solver": "SparseLu",
+          "solver_provider": "eqiora.faer"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve",
+          "linear_solve",
+          "symbolic_factorization"
+        ],
+        "fields": {
+          "backend": "faer"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve",
+          "linear_solve",
+          "numeric_factorization"
+        ],
+        "fields": {
+          "backend": "faer"
+        },
+        "calls": 1
+      },
+      {
+        "path": [
+          "run",
+          "solve",
+          "linear_solve",
+          "backsolve"
+        ],
+        "fields": {
+          "backend": "faer"
+        },
+        "calls": 2
+      }
+    ],
+    "solve": {
+      "algorithm": "sparse-lu",
+      "completed_iterations": 2,
+      "initial_residual_norm": 7.0719574780337,
+      "reported_residual_norm": 1.7449674218108645e-14,
+      "true_residual_norm": 1.7449674218108645e-14,
+      "residual_target": 7.0719574780336996e-06,
+      "backend": "eqiora.faer",
+      "adapter": "eqiora.host.serial",
+      "verification_adapter": "eqiora.host.serial",
+      "reduction": "fast",
+      "relative_tolerance": 1e-06,
+      "absolute_tolerance": 1e-13,
+      "maximum_iterations": 10000,
+      "preconditioner": "identity",
+      "convergence_reason": "ConvergenceReason.ResidualToleranceSatisfied"
+    },
+    "scope": "one separate native profile call; cold fields remain the only compared candidate"
+  },
+  "timing_gap": "The actual optimized steady-Stokes profile has linear solve/factorization/backsolve but no assembly phase. No timing mode is enabled.",
+  "committed_raw_directory": "raw",
+  "committed_raw_scope": "Original byte-for-byte public mesh JSON/binary, A/B/C observations, frozen manifest/launch, all manifest-bound operator archives, cold candidate fields, public Plan/Result binaries, native/audit reports and external/audit process receipts. Native process summary is an explicitly labelled projection; original inherited machine-local loader path remains only in the external receipt, bound by its original SHA.",
+  "external_retained_scope": "Complete JIT/log inventories and the original native process receipt remain externally retained; all scientific reader inputs needed for clone-only full-gate rechecks are committed.",
+  "external_full_inventories": {
+    "reference": "/data/nk523/.cache/eqiora/cylinder-fenicsx-reference-1.audit.json",
+    "candidate": "/data/nk523/.cache/eqiora/cylinder-fenicsx-candidate-1.artifacts.json"
+  },
+  "committed_reference_manifest": "raw/reference/reference-manifest.json",
+  "committed_candidate_field": "raw/candidate/candidate-field.json",
+  "committed_candidate_report": "raw/candidate/result.json",
+  "committed_independent_audit": "raw/candidate/independent-audit.json"
+}

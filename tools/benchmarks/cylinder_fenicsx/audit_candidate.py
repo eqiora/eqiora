@@ -8,17 +8,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dolfinx import fem
 import numpy as np
 from accuracy import check_trace_and_flux
+from field_artifact import read_candidate
 from budget import compare
 from common_basis import canonical_fields
 from fenicsx_adapter import prepare, boundary_flux_forms
 from reference_reader import load_reference
 from reference_system import build_system, observations
 from shared_measurement import ComparisonError, digest
-
-
-def decode(values):
-    array = np.asarray(values)
-    return np.fromiter((float.fromhex(item) for item in array.flat), dtype=np.float64).reshape(array.shape)
 
 
 def main():
@@ -41,10 +37,7 @@ def main():
     if receipt['terminal_exit_code'] != 0:
         raise ComparisonError('candidate worker did not pass; no completed-comparison audit claim')
     reference = load_reference(args.reference_manifest, args.reference_sha256)
-    candidate = json.loads(args.candidate_field.read_text())
-    coordinates, primary = decode(candidate['coordinates_float64_hex']), decode(candidate['values_float64_hex'])
-    associated = {name: {'association': field['association'], 'values': decode(field['values_float64_hex'])}
-                  for name, field in candidate['associated_fields'].items()}
+    coordinates, primary, associated = read_candidate(args.candidate_field, args.candidate_sha256)
     cold_accuracy = reference.candidate(coordinates, primary, associated)
     fields = {'velocity_vertex': primary, 'velocity_cell_bubble': associated['velocity_cell_bubble']['values'],
               'pressure_vertex': associated['pressure_vertex']['values']}

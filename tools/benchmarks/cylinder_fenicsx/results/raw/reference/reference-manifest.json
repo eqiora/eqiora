@@ -1,0 +1,105 @@
+{
+  "kind": "empirical external-only engineering agreement; not a certified continuum or forward-error bound",
+  "designated_reference": "A",
+  "reference_order": [
+    "A",
+    "B",
+    "C"
+  ],
+  "constants": {
+    "spread_multiplier": 10,
+    "broad_cap_fraction": 0.0001,
+    "mutant_separation": 20,
+    "residual_gamma_multiplier": 100
+  },
+  "residual_control": {
+    "m": 40,
+    "epsilon": 2.220446049250313e-16,
+    "gamma": 8.881784197001331e-15,
+    "scale_D": 1513.4640967294492,
+    "absolute_scaled_residual_ceiling": 1.3442261497060517e-09
+  },
+  "metrics": {
+    "velocity": {
+      "input_scale": 0.3,
+      "reference_amplitude": 0.22161329249001155,
+      "scale": 0.3,
+      "external_spread": 1.6032163370597473e-15,
+      "tolerance": 4.470348358154297e-09,
+      "broad_cap": 3e-05,
+      "mutant_distance": 0.00016018497258877052,
+      "separation_cap": 8.009248629438525e-06
+    },
+    "pressure": {
+      "input_scale": 0.0007317073170731707,
+      "reference_amplitude": 0.0216787185834004,
+      "scale": 0.0216787185834004,
+      "external_spread": 1.1576985262638428e-16,
+      "tolerance": 3.230380800873101e-10,
+      "broad_cap": 2.1678718583400403e-06,
+      "mutant_distance": 0.0007317073170731707,
+      "separation_cap": 3.6585365853658535e-05
+    },
+    "force_x": {
+      "input_scale": 0.0003,
+      "reference_amplitude": 0.0063513052173370345,
+      "scale": 0.0063513052173370345,
+      "external_spread": 3.209238430557093e-17,
+      "tolerance": 9.464182283486477e-11,
+      "broad_cap": 6.351305217337035e-07,
+      "mutant_distance": 0.0003,
+      "separation_cap": 1.4999999999999999e-05
+    },
+    "force_y": {
+      "input_scale": 0.0003,
+      "reference_amplitude": 6.226553469607031e-05,
+      "scale": 0.0003,
+      "external_spread": 2.7538735181131813e-17,
+      "tolerance": 4.4703483581542965e-12,
+      "broad_cap": 3e-08,
+      "mutant_distance": 0.0003,
+      "separation_cap": 1.4999999999999999e-05
+    }
+  },
+  "falsifiers_rejected": [
+    "zero_velocity",
+    "omit_bubbles",
+    "zero_pressure",
+    "pressure_shift",
+    "zero_drag",
+    "reverse_drag",
+    "shift_drag",
+    "shift_lift"
+  ],
+  "state": "frozen-before-candidate",
+  "launch_sha256": "3e978d2bf303f19cd7a47fd4ebc796302821ee751198b0032c942a067da86072",
+  "mesh_sha256": "6862d62092d6a7790d87c1331e3fe5833f437238eb24c1c444fc5b7ca3402fbd",
+  "mesh_identity": "806d3a7a0eaf34a427de9525a1e633b6871424acc85cad5cd2d43f2f84a8a57b",
+  "geometry_identity": "c1226bdfc83a5539f21ecced9afe180c60c5f4ca07a952711e3f3529213dee14",
+  "mesh_artifact_sha256": "d79bd0f66f3c6ae7a26da995c4f61447d0ce038f5bca8ea1d44f4f0ebbd0eb4a",
+  "common_basis": "original vertex velocity components, original cell hierarchical bubble components, original pressure vertices",
+  "essential_boundary_names": [
+    "inlet",
+    "walls",
+    "cylinder"
+  ],
+  "pressure_constraint": "none",
+  "variable_scales": {
+    "velocity_and_bubbles": 0.3,
+    "pressure": 0.0007317073170731707
+  },
+  "residual_norm": "infinity, same exported dimensionless designated-A CSR operator for references and candidate",
+  "designated_reference_file": "A/observation.json",
+  "reference_file_sha256": {
+    "A": "e49fd74a06be7da54d50f533d22d98a1161f79d8b8972dde8d20e3b02d5254a5",
+    "B": "36c6c651673d6fe1ce2f8e620f2aa687fe502738bd38d1f0b33e7fcde6d867ef",
+    "C": "b7030f5e7c347eeb29d2a1604bd36c812793275f5d41d814c5f712f643e346ce"
+  },
+  "common_operator_files": {
+    "reference-scaled-rhs.petsc": "6f1d34b211a8d883a9541921047fc2b6ea8ece36a9cb00c05037afe858bfeca3",
+    "reference-system.npz": "b263f1a05efc5ae48ae3a380d12b27ce1e3310ecb05bc6ef8b01d07d4a8810a0",
+    "reference-scaled-matrix.petsc": "b8c6179e99245a4b6c2c25db004811d6418558606369210e9187eea12fda5351"
+  },
+  "no_eqiora_output_read": true,
+  "candidate_started": false
+}

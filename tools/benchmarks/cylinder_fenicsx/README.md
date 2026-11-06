@@ -1,6 +1,6 @@
-# Ordinary steady-Stokes cylinder comparison (preparation)
+# Ordinary steady-Stokes cylinder: single-mesh correctness
 
-This comparison is being prepared for the actual finite channel and cylinder
+This compares the actual finite channel and cylinder
 in the shipped `steady-flow-past-cylinder.eqi` example. It uses the public
 `Eqiora.Fluid` steady-Stokes components, GeometryGraph, Gmsh mesh and MINI
 P1-plus-cell-bubble velocity/P1 pressure lifecycle. The channel is 2.2 m by
@@ -9,7 +9,7 @@ Dynamic viscosity is 0.001 Pa s; the inlet parabola has maximum speed 0.3 m/s.
 Walls and cylinder have zero velocity. The outlet has zero full Cauchy
 traction; no zero-mean pressure constraint is added.
 
-The preparation will transfer the public Eqiora mesh coordinates, triangle
+The comparison transfers the public Eqiora mesh coordinates, triangle
 connectivity and named boundary entities to FEniCSx 0.11, preserving the same
 polygonal mesh and boundary partition. No private model/result JSON or
 alternative physics implementation supplies Eqiora's side. FEniCSx uses its
@@ -17,13 +17,15 @@ independent standard finite-element assembly of the same Stokes problem.
 
 Geometry, mesh, public compilation, function-space and field-export
 preparation are implemented. The reviewed specification below fixes the force
-reference and empirical budget algorithm before numerical observations. Its
-reference batch and every candidate solve remain unexecuted; no timing
-campaign is authorised.
+reference and empirical budget algorithm before numerical observations. The first
+external reference batch, one native candidate worker and its separate
+assembly-only audit now pass. No timing campaign or continuum-convergence
+qualification is claimed.
 DFG/Navier–Stokes benchmark numbers are not Stokes reference values.
 
-The existing shared measurement and child-process owners will run any later
-reviewed comparison. This directory does not own another measurement loop.
+The shared measurement owner records the native worker. Later paired
+campaigns use the existing shared child-process owner. This directory does
+not own another measurement loop.
 
 ## Reviewed mathematical specification
 
@@ -261,3 +263,62 @@ essential-vertex union once against the unchanged conservation allowance.
 This is an independent reconstruction, not a native Eqiora union-force export.
 The receipt binds candidate bytes, worker source/artifact identity and the
 frozen reference hash; its process/memory are separate from the native worker.
+
+
+## Recorded single-mesh result
+
+The [correctness record](results/correctness.json) qualifies the initial mesh
+only: 2386 vertices, 4512 triangles, 16182 full scalar unknowns and 15694 free
+unknowns. Three external reference solves preceded the native candidate. The
+one native worker made one cold call and one separate profile call, with no
+warmups or timing samples. The independent reconstruction made zero PDE solves.
+Every process exited successfully; the original source/artifact identities are
+kept separately in the record.
+
+| Cold candidate metric | Difference from FEniCSx A | Frozen absolute allowance |
+| --- | --- | --- |
+| Complete velocity RMS | 8.64e-16 m/s | 4.47e-9 m/s |
+| Pressure RMS | 3.21e-16 Pa | 3.23e-10 Pa |
+| Cylinder x force | 1.73e-17 N/m | 9.46e-11 N/m |
+| Cylinder y force | 9.93e-18 N/m | 4.47e-12 N/m |
+
+The native external-operator residual, prescribed trace, analytic discrete
+inlet flux, force action–reaction and all four agreement metrics pass. The
+independent UFL reconstruction also passes the unchanged force, flux and
+global essential-union reaction controls. All eight mandatory external
+falsifiers were rejected. This is empirical agreement on one shared polygonal
+affine mesh, not continuum cylinder accuracy, a refinement study, or a tool
+speed ranking. Further actual-cylinder meshes remain required.
+
+The actual native profile contains linear solve, symbolic/numeric
+factorization and backsolve, but lacks an assembly phase. Cylinder timing
+therefore remains unavailable for this optimized artifact; the focused
+[profiling prerequisite](https://github.com/eqiora/eqiora/issues/1864) must be
+qualified before a later timing campaign.
+
+<picture>
+  <source media="(max-width: 600px)" srcset="results/single-mesh-mobile.png">
+  <img src="results/single-mesh.png" alt="Actual Eqiora pressure and complete MINI velocity on the shared cylinder mesh, with all four external differences below their predeclared allowances.">
+</picture>
+
+The mobile figure shows a near-cylinder detail of the same full-channel
+solution. Display sampling subdivides each triangle to show the complete
+cubic MINI velocity, including its bubble. The plotted color interpolation is
+only a display; acceptance uses degree-six integration of the full physical
+polynomial, not these samples.
+
+## Recheck and reproduce from a clone
+
+`recheck_saved.py` verifies the [raw inventory](results/raw-sha256.json), loads
+the original committed reference manifest/operators and cold candidate bytes,
+and reruns the complete pure-NumPy candidate gate, including the frozen CSR
+residual. It also checks the integrity-bound original UFL audit's cold-field
+identity, recorded force/global reaction/flux against unchanged bounds. It
+does not reassemble UFL or run another PDE solve. `plot_fields.py` invokes this
+same gate before rendering either figure with NumPy and Matplotlib.
+
+Successful numeric/reference/operator and public Mesh/Plan/Result artifacts
+are committed byte-for-byte. The native process summary is explicitly a
+projection omitting one machine-local loader path; its original receipt stays
+externally retained with the original digest. Full external JIT/log inventories
+are retained separately. No projected record is labelled an original raw file.

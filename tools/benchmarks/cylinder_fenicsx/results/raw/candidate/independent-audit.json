@@ -1,0 +1,95 @@
+{
+  "state": "assembly-only independent reconstruction passed",
+  "pde_solves": 0,
+  "scope": "FEniCSx reconstruction from retained Eqiora cold fields; not native Eqiora union-force export",
+  "candidate_worker_actual_harness_revision": "1c4bcab72f9acdaca14f149a43e3c4d28b63df25",
+  "candidate_worker_artifact": {
+    "actual_producer_source": "24320f878b2c895eacf92d6d1494c388f2d9f59e",
+    "wheel": {
+      "path": "/data/nk523/.cache/eqiora/poisson-3d-release-prep/artifacts/eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "filename": "eqiora-0.1.5-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "kind": "wheel",
+      "python": "3.11",
+      "abi": "abi3",
+      "platform": "manylinux_2_17_x86_64",
+      "size": 17099176,
+      "sha256": "4e08e0aca402f46c561d64c686f1df322c6f6f368ad0562da489a2d572b18257"
+    },
+    "receipt_sha256": "e6c5059b62759f39f385e261a4641b51e234c07d5548b1d6cbe105baf80f5672"
+  },
+  "candidate_worker_receipt_sha256": "44fb06bfd5b956654ff4b7d33628a49cca83c488c4f9728f17a254a5ae430c98",
+  "candidate_field_sha256": "9c7e5807eb2899b1e9f789cb4468e3c54ecfb8d1aa476de8e93897ed8f7ecb59",
+  "frozen_reference_manifest_sha256": "85ef07c5e0dddc079609eba03cc27e438817bc7b752306cbda966bba6f66b5c6",
+  "cold_candidate_accuracy": {
+    "frozen_reference_manifest_sha256": "85ef07c5e0dddc079609eba03cc27e438817bc7b752306cbda966bba6f66b5c6",
+    "agreement": {
+      "velocity": 8.641363537528484e-16,
+      "pressure": 3.2091440981155367e-16,
+      "force_x": 1.734723475976807e-17,
+      "force_y": 9.934002405398434e-18
+    },
+    "scaled_residual_inf": 2.2870594307278225e-14,
+    "scaled_residual_ceiling": 1.3442261497060517e-09,
+    "analytic_checks": {
+      "trace_max_error": 0.0,
+      "trace_arithmetic_allowance": 1.7053025658242404e-14,
+      "inlet_flux": -0.08171626297577854,
+      "outlet_flux": 0.08171626297577853,
+      "analytic_discrete_inlet_flux": -0.08171626297577854,
+      "flux_arithmetic_allowance": 1.1885958883794954e-13,
+      "net_flux": -1.3877787807814457e-17,
+      "weak_continuity_flux_bound": 3.945009208230214e-07
+    },
+    "physical_rms": {
+      "velocity": 0.22161329249001163,
+      "pressure": 0.02167871858340009
+    },
+    "force_on_domain": [
+      -0.006351305217337017,
+      -6.226553469608025e-05
+    ],
+    "force_on_selection": [
+      0.006351305217337017,
+      6.226553469608025e-05
+    ],
+    "scope": "shared affine-mesh empirical agreement; no continuum-drag or timing claim"
+  },
+  "imported_field_force_agreement": {
+    "velocity": 8.641363537528484e-16,
+    "pressure": 3.2091440981155367e-16,
+    "force_x": 6.938893903907228e-18,
+    "force_y": 1.0747154034762563e-17
+  },
+  "reconstructed_force_on_domain": [
+    -0.0063513052173370275,
+    -6.226553469608106e-05
+  ],
+  "reconstructed_force_on_selection": [
+    0.0063513052173370275,
+    6.226553469608106e-05
+  ],
+  "reconstructed_global_essential_reaction_on_domain": [
+    1.431146867680866e-17,
+    -6.322253918306098e-18
+  ],
+  "frozen_global_reaction_allowance": 9.622377664788123e-10,
+  "matrix_virtual_work_on_domain_diagnostic": [
+    -0.006351305217337022,
+    -6.226553469607993e-05
+  ],
+  "ufl_boundary_fluxes": {
+    "inlet": -0.0817162629757782,
+    "outlet": 0.08171626297577816
+  },
+  "analytic_checks": {
+    "trace_max_error": 0.0,
+    "trace_arithmetic_allowance": 1.7053025658242404e-14,
+    "inlet_flux": -0.08171626297577854,
+    "outlet_flux": 0.08171626297577853,
+    "analytic_discrete_inlet_flux": -0.08171626297577854,
+    "flux_arithmetic_allowance": 1.1885958883794954e-13,
+    "net_flux": -1.3877787807814457e-17,
+    "weak_continuity_flux_bound": 3.945009208230214e-07
+  },
+  "audit_source_sha256": "cacaf9cab6b7ba50115cf0db69c855c692c96da2cf32e6b80e4b93f42dc9c9e6"
+}

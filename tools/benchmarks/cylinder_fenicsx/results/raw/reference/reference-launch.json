@@ -1,0 +1,284 @@
+{
+  "harness_revision": "d37e282dda3d4ff33633570896fb897008c7dda6",
+  "harness_clean": true,
+  "mesh_file_sha256": "6862d62092d6a7790d87c1331e3fe5833f437238eb24c1c444fc5b7ca3402fbd",
+  "environment": {
+    "host": "nvidia7",
+    "platform": "Linux-6.11.0-1014-lowlatency-x86_64-with-glibc2.39",
+    "python": "3.13.18 | packaged by conda-forge | (main, Oct 26 2026, 11:38:18) [GCC 15.3.0]",
+    "executable": "/data/nk523/.cache/eqiora/tmp/poisson-fenicsx-comparison/external/.pixi/envs/default/bin/python",
+    "affinity": [
+      12
+    ],
+    "cpu_models": [
+      "Intel(R) Xeon(R) Gold 6346 CPU @ 3.10GHz"
+    ],
+    "versions": {
+      "fenics-dolfinx": "0.11.0",
+      "fenics-basix": "0.11.0",
+      "fenics-ffcx": "0.11.0",
+      "fenics-ufl": "2026.1.0",
+      "numpy": "2.5.4",
+      "petsc4py": "3.25.6",
+      "mpi4py": "4.1.2"
+    },
+    "thread_environment": {
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1",
+      "RAYON_NUM_THREADS": "1",
+      "BLIS_NUM_THREADS": "1"
+    },
+    "load_at_start": [
+      36.7109375,
+      40.56298828125,
+      39.17626953125
+    ],
+    "imports_wall_seconds": 0.926777593,
+    "numpy_and_tool_imports_included": true,
+    "protocol_sha256": "ee9a6a8e37adc330f506251b23c6ccb2cd3a3819bfd0d471be044871410d4b27",
+    "accuracy_driver_sha256": "05e877744c1f27219f4e9f6acbbd42e0776e6bd017cd6c4a9cea8d13f15fed24",
+    "harness_sha256": {
+      "accuracy.py": "05e877744c1f27219f4e9f6acbbd42e0776e6bd017cd6c4a9cea8d13f15fed24",
+      "budget.py": "ec39c6219e634759fbad9536d22faeceb65141207ddebb060e9a2b70d5974d73",
+      "calibrate.py": "09e282d8ca754bffe1aa0acd4429920ff1a7e71b5a10f1ad66ef5eb629e3ff70",
+      "external_residual.py": "ca9e51e2ee8dc7c775ef6a83424f7c62400b666bce8aae604e2ab3c5b8d2c97c",
+      "fenicsx_adapter.py": "f3ad0b6e62938541077d61bba357581f4e635c67504426f86eec085f8a6883db",
+      "prepare_eqiora.py": "9ee2e3e44b365ccd300491a03c9515980dd5b31aebfbbf2774ee2bc6feea817b",
+      "prepare_fenicsx.py": "004de84b0551e1ff5dc67522c76d6103173767425256f0753aa9c973e438d41f",
+      "public_mesh.py": "c03f2d24aafa70bdb3b53533f8a3659ca47c72934c7931f9168b8bff6f52adc3",
+      "reference_system.py": "a2b1db9bec8f67fb7cce1b97e456f55d1568d9d625c40630e5221844c1985451",
+      "test_budget.py": "069bbc008ba277052981af15c33812d15307dae3d37f9a02e7b1e10938b40333",
+      "test_external_residual.py": "52ec5bf157c975ac71fff37375d8db5bbe8a0e6de318832cb5e93452fd1a23c8",
+      "test_fenicsx_basis.py": "dc74694152fbf4e44fcac3f3e70849d8a9923c57ebcc2c213026d696c40b5259",
+      "test_topology.py": "f433ab57c2b14c399332ba571da3d2176a1f696ac08cba0325d7b89c9964834c",
+      "topology.py": "d5428311bc504198bc1fd1a0517af03f31b3fd72acf74807ef74cf20a4e7988f",
+      "tools/benchmarks/shared_measurement.py": "274c8c888bd4e6f2547deae6e5753ac27c33406941e90222c9add0d026286213",
+      "tools/benchmarks/shared_accuracy.py": "1afa0607b05ce4103909bf76346f327b690126fee35252d4f65ba368ce12fde8",
+      "tools/benchmarks/shared_campaign.py": "9bba180925a8657ecade62a5db8f314c88c6acf17dc0f4ad0feeeef9a76c05a5"
+    },
+    "petsc_version": {
+      "major": 3,
+      "minor": 25,
+      "subminor": 6,
+      "release": true,
+      "date": "Sep 28, 2026",
+      "authorinfo": [
+        "The PETSc Team",
+        "petsc-maint@mcs.anl.gov",
+        "https://petsc.org/"
+      ]
+    },
+    "numpy_version": "2.5.4",
+    "basix_version": "0.11.0",
+    "installed_petsc_options": {},
+    "factorization_packages": {
+      "mumps-mpi": {
+        "version": "5.8.2",
+        "build": "gfortran_h18beee2_3",
+        "sha256": "ad446eb14b00955e46c0a00ce47807459906983b0808c435f026f1d8ebc70d5c",
+        "channel": "https://conda.anaconda.org/conda-forge/"
+      },
+      "superlu_dist": {
+        "version": "9.2.1",
+        "build": "h5edd517_2",
+        "sha256": "3f8014f5aefa0239ef9e2d24c25cfed93dae736d689d17297f732a7110a85987",
+        "channel": "https://conda.anaconda.org/conda-forge/"
+      },
+      "petsc4py": {
+        "version": "3.25.6",
+        "build": "np2py311h3a91f14_0",
+        "sha256": "f16fea64908b0cfbedd7307417b98da4d57d7d5711dfe1e4a9cc1552674321c2",
+        "channel": "https://conda.anaconda.org/conda-forge/"
+      },
+      "superlu": {
+        "version": "7.0.1",
+        "build": "h8f6e6c4_0",
+        "sha256": "4e748f877553c7ed42290420ba1e9aa0e80cf72b23b463f12dbb7927c16f0437",
+        "channel": "https://conda.anaconda.org/conda-forge/"
+      },
+      "petsc": {
+        "version": "3.25.6",
+        "build": "real_h848054b_0",
+        "sha256": "0dd3a8de53c99ad367b29644e7e68029df2ca6c6d5c8bcd0f570a30c498b1c47",
+        "channel": "https://conda.anaconda.org/conda-forge/"
+      },
+      "mumps-include": {
+        "version": "5.8.2",
+        "build": "h580308f_3",
+        "sha256": "8b313af64cada2931a620d13c860d2a4ff7a5838bbfc25fdc5bc96dc5b3d1d7c",
+        "channel": "https://conda.anaconda.org/conda-forge/"
+      }
+    }
+  },
+  "policy": [
+    [
+      "A",
+      "mumps",
+      "duffy-3"
+    ],
+    [
+      "B",
+      "superlu",
+      "duffy-3"
+    ],
+    [
+      "C",
+      "mumps",
+      "basix-degree-6"
+    ]
+  ],
+  "geometry_audit": {
+    "triangle_fluid_area": 0.8941666729022311,
+    "oriented_boundary_fluid_area": 0.894166672902231,
+    "outer_signed_area": 0.9019999999999999,
+    "hole_signed_area": -0.007833327097769014,
+    "minimum_cell_area": 1.3373811293211084e-05,
+    "area_arithmetic_allowance": 1.2413511285558344e-09,
+    "hole_orientation": "clockwise into fluid exterior",
+    "positive_cells": true
+  },
+  "no_eqiora_output_read": true,
+  "candidate_started": false,
+  "quadrature": {
+    "duffy-3": {
+      "quadrature_rule": "custom",
+      "quadrature_points": [
+        [
+          0.1127016653792583,
+          0.09999999999999999
+        ],
+        [
+          0.1127016653792583,
+          0.44364916731037085
+        ],
+        [
+          0.1127016653792583,
+          0.7872983346207417
+        ],
+        [
+          0.5,
+          0.05635083268962915
+        ],
+        [
+          0.5,
+          0.25
+        ],
+        [
+          0.5,
+          0.44364916731037085
+        ],
+        [
+          0.8872983346207417,
+          0.012701665379258308
+        ],
+        [
+          0.8872983346207417,
+          0.05635083268962915
+        ],
+        [
+          0.8872983346207417,
+          0.09999999999999999
+        ]
+      ],
+      "quadrature_weights": [
+        0.06846437767135356,
+        0.10954300427416566,
+        0.06846437767135356,
+        0.061728395061728406,
+        0.09876543209876543,
+        0.061728395061728406,
+        0.008696116155806972,
+        0.013913785849291151,
+        0.008696116155806972
+      ]
+    },
+    "basix-degree-6": {
+      "quadrature_rule": "custom",
+      "quadrature_points": [
+        [
+          0.06546699455501447,
+          0.05710419611451767
+        ],
+        [
+          0.05021012321136978,
+          0.2768430136381238
+        ],
+        [
+          0.028912084224389012,
+          0.5835904323689168
+        ],
+        [
+          0.009703785126946113,
+          0.8602401356562195
+        ],
+        [
+          0.311164552244357,
+          0.05710419611451767
+        ],
+        [
+          0.23864865973144292,
+          0.2768430136381238
+        ],
+        [
+          0.13741910413457437,
+          0.5835904323689168
+        ],
+        [
+          0.046122079906452056,
+          0.8602401356562195
+        ],
+        [
+          0.6317312516411253,
+          0.05710419611451767
+        ],
+        [
+          0.48450832663043325,
+          0.2768430136381238
+        ],
+        [
+          0.2789904634965088,
+          0.5835904323689168
+        ],
+        [
+          0.09363778443732852,
+          0.8602401356562195
+        ],
+        [
+          0.8774288093304679,
+          0.05710419611451767
+        ],
+        [
+          0.6729468631505063,
+          0.2768430136381238
+        ],
+        [
+          0.38749748340669415,
+          0.5835904323689168
+        ],
+        [
+          0.13005607921683446,
+          0.8602401356562195
+        ]
+      ],
+      "quadrature_weights": [
+        0.02356836819338231,
+        0.03538806789808594,
+        0.022584049282369924,
+        0.005423225910525254,
+        0.04418508852236171,
+        0.06634421610704977,
+        0.0423397245217463,
+        0.010167259564478793,
+        0.04418508852236169,
+        0.06634421610704974,
+        0.04233972452174629,
+        0.01016725956447879,
+        0.02356836819338231,
+        0.03538806789808594,
+        0.022584049282369924,
+        0.005423225910525254
+      ]
+    }
+  }
+}
