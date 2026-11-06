@@ -298,7 +298,7 @@ mod tests {
             remaining: 65536,
             integration_domain: None,
         };
-        let pressure = D::from_integers([-1, 1, -2, 0, 0, 0, 0]).unwrap();
+        let pressure = D::from_integers([1, -1, -2, 0, 0, 0, 0]).unwrap();
         let lift = E::IsotropicLift {
             value: Box::new(E::Rational {
                 value: eqiora_schema::kernel::pure_operator::ExactRational::integer(0),

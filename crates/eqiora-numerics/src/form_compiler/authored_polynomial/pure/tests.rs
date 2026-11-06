@@ -11,7 +11,7 @@ fn context(dimensions: usize, complex: bool) -> Context<'static> {
         } else {
             ScalarDomain::Real
         },
-        DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap(),
+        DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
         ValueShape::new([dimensions as u32]).unwrap(),
         ValueFrame::SpatialCartesian,
     )
@@ -130,7 +130,7 @@ fn structure_calculus_rejects_invalid_physical_operands_before_zero_cancellation
             "u".into(),
             ValueType::shaped(
                 ScalarDomain::Real,
-                DimExponents::from_integers([1, 0, 0, 0, 0, 0, 0]).unwrap(),
+                DimExponents::from_integers([0, 1, 0, 0, 0, 0, 0]).unwrap(),
                 ValueShape::new([dimensions as u32]).unwrap(),
                 ValueFrame::Invariant,
             )
