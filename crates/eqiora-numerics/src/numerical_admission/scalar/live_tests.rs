@@ -221,6 +221,7 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
     for phase in [
         "scalar_plan_reauthentication",
         "scalar_structure_preflight",
+        "scalar_system_finalization",
         "scalar_problem_preparation",
         "scalar_linear_request",
         "scalar_solution_validation",
@@ -232,6 +233,8 @@ fn check_attribution(plan: &CommonSpatialPlan, plain: &crate::CommonResult) {
             "{phase} precedes acceptance"
         );
     }
+    let (finalization, _) = find("scalar_system_finalization");
+    assert_eq!(find("assembly").1.1, Some(finalization as u64 + 1));
     let (request, _) = find("scalar_linear_request");
     assert_eq!(find("linear_solve").1.1, Some(request as u64 + 1));
     assert!(capture.stack.is_empty(), "all scopes close after execution");
