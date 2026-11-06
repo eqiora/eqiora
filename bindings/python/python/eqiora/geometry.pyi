@@ -37,6 +37,8 @@ class GeometryOperation:
     ``(x_lower, x_upper, y_lower, y_upper)``, a circle returns its sole curve,
     a cuboid returns ``(x_lower, x_upper, y_lower, y_upper, z_lower, z_upper)``,
     and subtract returns the four outer boundaries followed by the created cut.
+    A polygon returns edges in authored cyclic order; a convex polyhedron
+    returns faces in authored order.
 
     Authority: ``crates/eqiora-python/src/geometry_operation.rs::PyGeometryOperation``.
     """
@@ -73,6 +75,23 @@ class GeometryGraph:
         y_bounds: tuple[float, float],
         z_bounds: tuple[float, float],
     ) -> GeometryOperation: ...
+    def polygon(
+        self,
+        *,
+        vertices: Sequence[tuple[float, float]],
+        tolerance: float,
+    ) -> GeometryOperation:
+        """Build a simple polygon from cyclic vertices, with lengths in metres."""
+        ...
+    def convex_polyhedron(
+        self,
+        *,
+        vertices: Sequence[tuple[float, float, float]],
+        faces: Sequence[Sequence[int]],
+        tolerance: float,
+    ) -> GeometryOperation:
+        """Build a convex shell from outward face loops, with lengths in metres."""
+        ...
     def circle(
         self,
         *,
