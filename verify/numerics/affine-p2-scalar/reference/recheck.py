@@ -8,12 +8,23 @@ from refinement import certify
 
 
 def encoded(value):
-    return json.loads(json.dumps(value,default=lambda x:str(x) if isinstance(x,Fraction) else None))
+    def rational(x):
+        if isinstance(x,Fraction):return str(x)
+        raise TypeError(type(x).__name__)
+    return json.loads(json.dumps(value,default=rational))
 
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('directory',type=Path)
+    parser.add_argument('--manifest',type=Path,default=Path(__file__).with_name('data')/'manifest.json')
     args=parser.parse_args()
+    manifest=json.loads(args.manifest.read_text())
+    for name,digest in manifest['files'].items():
+        path=args.manifest.parent/name
+        if '..' in Path(name).parts or Path(name).is_absolute():raise ValueError('invalid packet path')
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=digest:raise ValueError('packet byte digest mismatch')
+    if hashlib.sha256((args.directory/'receipt.json').read_bytes()).hexdigest()!=manifest['files']['refinement/receipt.json']:
+        raise ValueError('unbound generation receipt')
     receipt=json.loads((args.directory/'receipt.json').read_text())
     if receipt.get('status')!='certified':raise ValueError('incomplete reference generation')
     levels=receipt['levels']

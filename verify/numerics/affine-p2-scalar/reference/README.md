@@ -1,15 +1,15 @@
 # Proposed independent affine-simplex P2 scalar reference
 
-This is a mathematical proposal awaiting independent review. It contains no
-reference implementation, native execution, candidate output or capability
-claim. Both triangles and tetrahedra are required. An exact quadratic patch is
+The mathematical specification was independently reviewed before the reference
+implementation below. Its computed packet still requires independent review
+before any product candidate. There is no Eqiora execution, candidate output or
+capability claim. Both triangles and tetrahedra are required. An exact quadratic patch is
 not a convergence study; the separate refinement witness below remains required.
 
 The reference will use rational arithmetic and polynomial integration. It will
 import no Eqiora code, consume no Eqiora output as an expectation, and share no
 product assembly implementation. Inspection of the existing kernel establishes
-only the intended producer interface. Implementation starts after math review;
-all reference constants and finite-level intervals must be frozen before any
+only the intended producer interface. The approved proposal is preserved in this file's history. All reference constants and finite-level intervals must be frozen before any
 product candidate is examined.
 
 ## Space and exact integration
@@ -298,5 +298,107 @@ Expected asymptotic orders are H1 seminorm two and L2 three for this smooth fiel
 on shape-regular affine refinements. They are not finite-level thresholds.
 Finite-level acceptance and rates must use the independently frozen intervals,
 with all actual vertex and edge coefficients, not a vertex subset, tensor
-amplitude projection or an exact-patch rate argument. This construction and its
-numeric allocation need the separate math review before implementation.
+amplitude projection or an exact-patch rate argument. The construction and numeric allocation were reviewed before implementation;
+the computed constants, intervals and falsifiers require a separate review.
+
+## Implemented independent reference
+
+The mathematical specification above was reviewed before implementation. This
+reference does not establish an ordinary Eqiora P2 capability. Both dimensions
+remain mandatory in the later product verification.
+
+`exact.py` constructs physical meshes and complete vertex/edge topology, expands
+the barycentric basis, and integrates rational polynomials. `generate_patch.py`
+retains both full operators, volume and natural loads, constrained/free indices,
+exact coefficients, constrained actions and exact free inverses. Every inverse
+is checked by rational multiplication. No approximate inverse or measured product
+residual determines a patch allowance.
+
+`refinement.py` assembles independent exact stiffness, mass and load entries.
+SciPy SuperLU proposes reference coefficients only. Their binary64 values are
+then interpreted as exact rationals. The complete free residual, both full-field
+polynomial error norms, and the Poincare/mass uncertainty bounds are rationally
+checked. Square-root endpoints are verified by exact squared comparisons.
+`recheck.py` takes the retained coefficient bytes through that same owner without
+calling a linear solver. Original generation identities remain in the retained
+receipt; a later replay does not change their provenance.
+
+`compare.py` compares every coefficient at its physical interpolation point.
+It computes the exact L2 and H1-seminorm distance between a future complete
+candidate vector and the retained independent reference vector. For each norm
+separately, its outward-enclosed distance plus the certified reference uncertainty
+must be at most 1e-3 times the strictly positive frozen error lower bound. The
+square-root enclosure is included in that sum. Missing, duplicate and unknown
+points or a nonzero essential trace fail before comparison. A future ordinary
+producer must additionally authenticate actual Plan/mesh/association inventories
+and the effective quadrature. This mathematical checker does not parse product
+artifacts or accept a self-declared quadrature count as evidence.
+
+For a frozen error interval [a_N,b_N], set t_N=1e-3 a_N. The corresponding
+finite-level candidate-error interval is [a_N-t_N,b_N+t_N]. For consecutive
+levels N and 2N, the rate interval is
+
+```
+[ log2((a_N-t_N)/(b_2N+t_2N)),
+  log2((b_N+t_N)/(a_2N-t_2N)) ].
+```
+
+Both norms use their own intervals. All endpoints are positive. A later rate
+comparison must use these intervals, not a fixed asymptotic threshold or a rate
+fitted to product outputs. Full-vector comparison is required at all three
+levels; a favorable rate cannot rescue a rejected coefficient vector.
+
+## Retained packet and replay
+
+The committed `data/manifest.json` identifies original scientific bytes and their
+actual generation source. The gzip file is lossless compression of the original
+patch JSON; its decompressed digest is recorded separately. The six refinement
+files and original generation receipt are unchanged. No product result or
+machine-local runtime library is included.
+
+Run from this directory with Python 3.12 or newer:
+
+```
+python3 -B -m unittest discover -p 'test_*.py'
+python3 -B recheck_patch.py
+python3 -B recheck.py data/refinement
+```
+
+The pure geometry/patch checker and saved-coefficient replay need only Python's
+standard library. The unit tests that propose small independent reference vectors
+also require NumPy and SciPy; they never import Eqiora. The retained generation
+receipt records the actual Python, NumPy and SciPy versions. The final command
+performs six exact residual/full-field checks with zero linear solves. Expect the
+3D N=8 rational assembly to take longer than the smaller levels.
+
+The patch producer's exact inverse constants are approximately 9.1726457359 in
+2D and 19.1729604235 in 3D. The authoritative values and fixed allowances are
+rational numbers in the compressed packet, not these rounded displays.
+
+| Dimension | N | L2 error lower bound | H1-seminorm error lower bound |
+|---|---:|---:|---:|
+| 2D | 2 | 0.0065734129790 | 0.041920160524 |
+| 2D | 4 | 0.00077845258795 | 0.011503780184 |
+| 2D | 8 | 0.000089391515284 | 0.0029863991322 |
+| 3D | 2 | 0.0031372016021 | 0.025454901745 |
+| 3D | 4 | 0.00039939072878 | 0.0074529187927 |
+| 3D | 8 | 0.000046782219496 | 0.0019849841904 |
+
+These are rounded displays of certified intervals, not additional thresholds.
+The physical L2/H1-seminorm units are m/dimensionless in 2D and m^(3/2)/m^(1/2)
+in 3D. The largest relative reference uncertainty is below 2.51e-9 in L2 and
+5.24e-11 in H1 seminorm, below the fixed 1e-4 reference allocation.
+
+![Independent affine P2 reference error intervals](reference-errors.png)
+
+The plot normalizes physical norms by u_star ell_star^(d/2) for L2 and by
+u_star ell_star^(d/2-1) for H1 seminorm. Its points are independent reference
+error intervals, not Eqiora outputs or a product convergence claim.
+
+The patch coefficient, essential-trace and free-residual gates do not require a
+native constrained-action export. `patch_gate.check` reports whether the optional
+action vector was supplied and checked. When supplied, the complete vector and
+its sum must pass the unchanged normalized reaction budgets. A future producer
+must separately record whether it obtained this vector from an existing native
+API. Reference-assembled actions are never a substitute for a native witness;
+the rational actions in this packet establish the mathematical expectation only.

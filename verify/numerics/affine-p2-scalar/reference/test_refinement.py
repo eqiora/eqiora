@@ -39,4 +39,15 @@ class ComparisonTests(unittest.TestCase):
             mutant=[dict(r) for r in records];mutant[edge_index]['value_binary64_hex']='0x0.0p+0'
             with self.assertRaises(ValueError):compare(reference,mutant)
 
+
+class FiniteRateTests(unittest.TestCase):
+    def test_predeclared_finite_rate_gate(self):
+        from compare import check_rate_interval,compare_levels
+        ref1={'lower':'1','upper':'1'};ref2={'lower':'1/8','upper':'1/8'}
+        c1={'error_lower':'1','error_upper':'1'};c2={'error_lower':'1/8','error_upper':'1/8'}
+        result=check_rate_interval(c1,c2,ref1,ref2)
+        self.assertEqual(Q(result['two_to_rate_lower']),8)
+        with self.assertRaises(ValueError):check_rate_interval(c1,{'error_lower':'1/4','error_upper':'1/4'},ref1,ref2)
+        with self.assertRaises(ValueError):compare_levels([], {})
+
 if __name__=='__main__':unittest.main()

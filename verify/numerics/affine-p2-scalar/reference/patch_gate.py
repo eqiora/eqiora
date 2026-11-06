@@ -1,12 +1,12 @@
 """Exact independent patch acceptance; no Eqiora artifact semantics."""
 from fractions import Fraction as Q
-from exact import patch_value
 
 
-def check(packet, coefficients, constrained_actions):
-    values = list(map(Q,coefficients)); actions = list(map(Q,constrained_actions))
+def check(packet, coefficients, constrained_actions=None):
+    values = list(map(Q,coefficients))
+    actions = None if constrained_actions is None else list(map(Q,constrained_actions))
     nodes = packet['nodes_m']; essential = packet['essential']; free = packet['free']
-    if len(values)!=len(nodes) or len(actions)!=len(essential):
+    if len(values)!=len(nodes) or (actions is not None and len(actions)!=len(essential)):
         raise ValueError('incomplete coefficient or constrained-action inventory')
     expected = list(map(Q,packet['exact_coefficients']))
     if any(values[i]!=expected[i] for i in essential): raise ValueError('essential trace mismatch')
@@ -14,8 +14,10 @@ def check(packet, coefficients, constrained_actions):
         raise ValueError('coefficient allowance exceeded')
     residual = [sum(Q(a)*v for a,v in zip(row,values))-Q(f)-Q(g) for row,f,g in zip(packet['stiffness'],packet['volume_load'],packet['natural_load'])]
     if sum(residual[i]**2 for i in free)>Q(packet['epsilon'])**2: raise ValueError('free residual allowance exceeded')
+    if actions is None:
+        return {'accepted':True,'constrained_actions_checked':False}
     rho=Q(packet['rho'])
     if any(abs(a-residual[i])>rho for i,a in zip(essential,actions)): raise ValueError('constrained action allowance exceeded')
     exact_total=sum(map(Q,packet['exact_constrained_actions']))
     if abs(sum(actions)-exact_total)>Q(packet['reaction_sum_allowance']): raise ValueError('total constrained action allowance exceeded')
-    return True
+    return {'accepted':True,'constrained_actions_checked':True}

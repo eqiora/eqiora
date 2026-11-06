@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "source_revision": "64784a1953ba050f238ed3de3cd1f62dea25d14c",
+  "source_sha256": {
+    "exact.py": "2ee41265bd887a5d11e76c6b148c3b42b52e165a3fd04be3359c65c2f116ce76",
+    "refinement.py": "6c76d0a75b0ad1eb3abccf759c75020b496d767d86b85e49fa0ba7338f5e778d",
+    "generate_refinement.py": "2e92a8e30edce2b7f71db0b12c62416efe107aa3e315c6668ccebf10132b5f93"
+  },
+  "python": "3.12.3",
+  "scipy": "1.16.1",
+  "numpy": "2.1.3",
+  "affinity": [
+    56
+  ],
+  "thread_controls": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "NUMEXPR_NUM_THREADS": "1"
+  },
+  "started_at": "2026-11-06T14:37:27.652214+00:00",
+  "levels": [
+    {
+      "dimension": 2,
+      "N": 2,
+      "file": "d2-n2.json",
+      "sha256": "6aa84b4cbecb5314d9ef52baab93a3a9e56913b0645014b87ead277c1692d0bb",
+      "elapsed_seconds": 0.13666036818176508
+    },
+    {
+      "dimension": 2,
+      "N": 4,
+      "file": "d2-n4.json",
+      "sha256": "8105441f331b07639ed0e36dff8301069b36712ab275aa0c23c574ff4d2cbe3d",
+      "elapsed_seconds": 0.07147187506780028
+    },
+    {
+      "dimension": 2,
+      "N": 8,
+      "file": "d2-n8.json",
+      "sha256": "b83fe791fcec4541ab202dcc7c7865b003a185b1b4061e02dc25ad6820c8bd94",
+      "elapsed_seconds": 0.2867153389379382
+    },
+    {
+      "dimension": 3,
+      "N": 2,
+      "file": "d3-n2.json",
+      "sha256": "e82c55b7d53593acd24c168733b19969a34c519eb56647c40e94ab8ac3056b9d",
+      "elapsed_seconds": 0.7824409268796444
+    },
+    {
+      "dimension": 3,
+      "N": 4,
+      "file": "d3-n4.json",
+      "sha256": "86768f8cd7afc9c12df50082883a4dcfd5d3594192bcb28d4504e80f7262b86c",
+      "elapsed_seconds": 7.951950327027589
+    },
+    {
+      "dimension": 3,
+      "N": 8,
+      "file": "d3-n8.json",
+      "sha256": "5795a98356a51cbdf2dd454d39bbe1351bed8cdd8fbef731ba691070be30d802",
+      "elapsed_seconds": 116.08469335595146
+    }
+  ],
+  "finished_at": "2026-11-06T14:39:32.967383+00:00",
+  "status": "certified"
+}

@@ -10,6 +10,10 @@ class GateTests(unittest.TestCase):
     def test_exact_patch_passes(self):
         p=self.packet
         self.assertTrue(check(p,p['exact_coefficients'],p['exact_constrained_actions']))
+    def test_optional_action_witness(self):
+        p=self.packet
+        self.assertFalse(check(p,p['exact_coefficients'])['constrained_actions_checked'])
+        self.assertTrue(check(p,p['exact_coefficients'],p['exact_constrained_actions'])['constrained_actions_checked'])
     def test_missing_or_zero_or_negated_coefficients(self):
         p=self.packet; exact=p['exact_coefficients']; reaction=p['exact_constrained_actions']
         for bad in [exact[:-1],[Q(0)]*len(exact),[-x for x in exact]]:
