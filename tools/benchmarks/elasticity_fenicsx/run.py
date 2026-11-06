@@ -2,8 +2,10 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from shared_campaign import collect_reports
 from shared_measurement import ComparisonError
@@ -23,6 +25,8 @@ def main():
     parser.add_argument('--cpu', type=int, required=True)
     args = parser.parse_args()
     args.dimension = 2
+    if not re.fullmatch('[0-9a-f]{40}', args.eqiora_revision):
+        raise ComparisonError('actual producer revision must be a full lowercase Git object ID')
     if args.cpu not in os.sched_getaffinity(0):
         raise ComparisonError('allocated CPU is outside caller affinity')
     if args.output.exists():
@@ -40,4 +44,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ComparisonError as error:
+        print(json.dumps({'error': str(error), 'complete_comparison': False}))
+        raise SystemExit(2)
