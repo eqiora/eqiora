@@ -12,9 +12,11 @@ impl GeometryOperation {
     /// Direct typed handle for this operation's interior region.
     #[must_use]
     pub const fn region(&self) -> GeometryRegionHandle {
-        let source = match self.kind {
+        let source = match &self.kind {
             OperationKind::Interval { .. } => RegionSource::Interval,
             OperationKind::Cuboid { .. } => RegionSource::Cuboid,
+            OperationKind::Polygon(_) => RegionSource::Polygon,
+            OperationKind::ConvexPolyhedron(_) => RegionSource::ConvexPolyhedron,
             OperationKind::Rectangle { .. } => RegionSource::Rectangle,
             OperationKind::Circle { .. } => RegionSource::Circle,
             OperationKind::Subtract { .. } => RegionSource::Subtract,
@@ -34,7 +36,22 @@ impl GeometryOperation {
     /// subtract then appends the created cut boundary. A circle has one member.
     #[must_use]
     pub fn boundaries(&self) -> Vec<GeometryBoundaryHandle> {
-        let sources: &[BoundarySource] = match self.kind {
+        if let OperationKind::Polygon(primitive) | OperationKind::ConvexPolyhedron(primitive) =
+            &self.kind
+        {
+            return (0..primitive.boundary_members.len())
+                .map(|index| GeometryBoundaryHandle {
+                    owner: self.owner,
+                    operation: self.operation,
+                    source: if matches!(&self.kind, OperationKind::Polygon(_)) {
+                        BoundarySource::Polygon(index)
+                    } else {
+                        BoundarySource::ConvexPolyhedron(index)
+                    },
+                })
+                .collect();
+        }
+        let sources: &[BoundarySource] = match &self.kind {
             OperationKind::Interval { .. } => {
                 &[BoundarySource::Interval(0), BoundarySource::Interval(1)]
             }
@@ -61,6 +78,7 @@ impl GeometryOperation {
                 BoundarySource::Subtract(4),
             ],
             OperationKind::Partition { .. } => &[],
+            OperationKind::Polygon(_) | OperationKind::ConvexPolyhedron(_) => &[],
         };
         sources
             .iter()
@@ -74,8 +92,10 @@ impl GeometryOperation {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum OperationKind {
+    Polygon(std::sync::Arc<super::polytope::Primitive>),
+    ConvexPolyhedron(std::sync::Arc<super::polytope::Primitive>),
     Cuboid {
         bounds: [[f64; 2]; 3],
     },
@@ -106,6 +126,8 @@ pub(super) enum OperationKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum RegionSource {
+    Polygon,
+    ConvexPolyhedron,
     Cuboid,
     Interval,
     Rectangle,
@@ -116,6 +138,8 @@ pub(super) enum RegionSource {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum BoundarySource {
+    Polygon(usize),
+    ConvexPolyhedron(usize),
     Cuboid(usize),
     Interval(usize),
     Rectangle(usize),
@@ -137,7 +161,8 @@ impl GeometryRegionHandle {
     pub const fn dimension(self) -> usize {
         match self.source {
             RegionSource::Interval => 1,
-            RegionSource::Cuboid => 3,
+            RegionSource::Cuboid | RegionSource::ConvexPolyhedron => 3,
+            RegionSource::Polygon => 2,
             RegionSource::Rectangle
             | RegionSource::Circle
             | RegionSource::Subtract
@@ -160,7 +185,8 @@ impl GeometryBoundaryHandle {
     pub const fn dimension(self) -> usize {
         match self.source {
             BoundarySource::Interval(_) => 0,
-            BoundarySource::Cuboid(_) => 2,
+            BoundarySource::Cuboid(_) | BoundarySource::ConvexPolyhedron(_) => 2,
+            BoundarySource::Polygon(_) => 1,
             BoundarySource::Rectangle(_) | BoundarySource::Circle | BoundarySource::Subtract(_) => {
                 1
             }
