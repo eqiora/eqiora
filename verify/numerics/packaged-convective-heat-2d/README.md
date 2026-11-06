@@ -9,7 +9,7 @@ fixed temperature; the right face convects to a prescribed ambient temperature;
 the horizontal faces are insulated. There is no volume heating.
 
 The four fixed inputs come from the canonical
-[Robin reference](https://github.com/eqiora/eqiora/blob/c7add4f8be40f3dcd5333542c37bba99cdf743f1/verify/numerics/cartesian-robin-q1/reference/README.md): zero transfer,
+[Robin reference](../cartesian-robin-q1/reference/README.md): zero transfer,
 two positive transfer coefficients, and a different rectangle and conductivity
 with reversed temperature difference. Every input uses an actual 2 × 2 mesh on
 its own rectangle. A source fixture with a hard-coded unit square cannot cover
@@ -35,7 +35,7 @@ This higher-layer test follows imported compilation, resolution, ordinary public
 execution, and Plan/Result save and reopening. Its result-only comparison does
 not audit a same-run full matrix or load, or observe private nodal weak reactions.
 Full operator, load and direct weak-reaction recovery checks remain independently
-mandatory in the lower-layer [Cartesian Robin case](https://github.com/eqiora/eqiora/blob/a591b9f294310da859bebd75e107160d3990153e/verify/numerics/cartesian-robin-q1/README.md).
+mandatory in the lower-layer [Cartesian Robin case](../cartesian-robin-q1/README.md).
 The two cases compose: the lower owner checks assembly and private reaction
 recovery; this owner checks that ordinary imports, typed bindings, actual geometry,
 public heat-flow observations and artifact replay reach that path. No fabricated
