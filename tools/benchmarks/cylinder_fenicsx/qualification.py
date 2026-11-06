@@ -40,6 +40,23 @@ def check_harness(report):
         raise ComparisonError('timing code differs from the complete correctness-qualified harness')
 
 
+def check_report_reference(report, expected_sha256):
+    if report.get('environment', {}).get('frozen_reference_manifest_sha256') != expected_sha256:
+        raise ComparisonError('correctness report frozen reference differs from the declared case')
+
+
+def check_cold_pair(report, coordinates, primary, associated):
+    if (not np.array_equal(np.asarray(report['coordinates']), coordinates)
+            or not np.array_equal(np.asarray(report['values']), primary)
+            or set(report['associated_fields']) != set(associated)):
+        raise ComparisonError('retained candidate does not match the process cold arrays')
+    for name, field in associated.items():
+        recorded = report['associated_fields'][name]
+        if (recorded['association'] != field['association']
+                or not np.array_equal(np.asarray(recorded['values']), field['values'])):
+            raise ComparisonError('retained candidate does not match the process cold associated fields')
+
+
 def validate_qualification(path, cases, expected_artifact):
     payload = json.loads(path.read_text())
     if set(payload) != {'cases'} or set(payload['cases']) != set(LEVELS):
@@ -62,10 +79,14 @@ def validate_qualification(path, cases, expected_artifact):
                     or report.get('tool') != backend or report['mesh']['digest'] != case.reference.data['mesh_digest']
                     or not report['profile']['required_phases_available']):
                 raise ComparisonError('case, mesh, correctness mode or required phase qualification is incomplete')
+            check_report_reference(report, case.sha256)
             check_harness(report)
             extra = {name: {'association': field['association'], 'values': np.asarray(field['values'])}
                      for name, field in report['associated_fields'].items()}
             case.reference.candidate(report['coordinates'], report['values'], extra)
+            cold_path = receipt_path.with_name('candidate-field.json')
+            cold_coordinates, cold_values, cold_associated = read_candidate(cold_path, digest(cold_path))
+            check_cold_pair(report, cold_coordinates, cold_values, cold_associated)
             receipts[backend] = (receipt_path, receipt); reports[backend] = report
         audit_path = verified_descriptor(path.parent, entry['assembly_audit'])
         audit = json.loads(audit_path.read_text())
@@ -79,6 +100,7 @@ def validate_qualification(path, cases, expected_artifact):
                 or any(audit.get('candidate_worker_artifact', {}).get(key) != value for key, value in expected_artifact.items())):
             raise ComparisonError('independent audit does not bind the successful candidate/reference/producer')
         coordinates, primary, extra = read_candidate(candidate_path, candidate_digest)
+        check_cold_pair(reports['eqiora'], coordinates, primary, extra)
         accuracy = case.reference.candidate(coordinates, primary, extra)
         fields = {'velocity_vertex': primary, 'velocity_cell_bubble': extra['velocity_cell_bubble']['values'],
                   'pressure_vertex': extra['pressure_vertex']['values']}

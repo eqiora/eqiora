@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from qualification import check_process, verified_descriptor, validate_qualification
+from qualification import check_process, verified_descriptor, validate_qualification, check_report_reference, check_cold_pair
 from topology import ComparisonError
 
 
@@ -24,6 +24,26 @@ class QualificationTests(unittest.TestCase):
         bad = copy.deepcopy(receipt); bad['artifact']['sha256'] = 'd'*64
         with self.assertRaises(ComparisonError):
             check_process(bad, label='coarse', backend='eqiora', expected_artifact=artifact)
+
+    def test_reference_binding_is_required_for_both_backends(self):
+        for backend in ('eqiora', 'fenicsx'):
+            report = {'tool': backend, 'environment': {'frozen_reference_manifest_sha256': 'a'*64}}
+            check_report_reference(report, 'a'*64)
+            with self.assertRaises(ComparisonError): check_report_reference(report, 'b'*64)
+            del report['environment']['frozen_reference_manifest_sha256']
+            with self.assertRaises(ComparisonError): check_report_reference(report, 'a'*64)
+
+    def test_retained_candidate_must_be_the_recorded_cold_arrays(self):
+        report = {'coordinates': [[0., 1.]], 'values': [[2., 3.]],
+                  'associated_fields': {'bubble': {'association': 'cell-bubble', 'values': [[4., 5.]]}}}
+        check_cold_pair(report, report['coordinates'], report['values'], report['associated_fields'])
+        for name in ('coordinates', 'values', 'associated_fields'):
+            bad = copy.deepcopy(report)
+            if name == 'associated_fields': bad[name]['bubble']['values'][0][0] += 1
+            else: bad[name][0][0] += 1
+            with self.subTest(name=name):
+                with self.assertRaises(ComparisonError):
+                    check_cold_pair(bad, report['coordinates'], report['values'], report['associated_fields'])
 
     def test_bad_hash_or_incomplete_case_qualification_is_rejected(self):
         scratch = Path.home()/'.cache/eqiora/cylinder-qualification-tests'; scratch.mkdir(parents=True, exist_ok=True)
