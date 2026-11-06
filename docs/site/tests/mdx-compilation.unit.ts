@@ -17,6 +17,6 @@ test('Kármán vortex-street gallery source compiles as MDX', () => {
 const learn = new URL('../src/content/docs/learn/', import.meta.url);
 for (const path of readdirSync(learn, { recursive: true }).filter((name) => name.endsWith('.mdx'))) {
   test(`Learn chapter ${path} compiles as MDX`, () => {
-    assert.doesNotThrow(() => mdxToJs(readFileSync(new URL(path, learn), 'utf8'), { features: { math: true }, mdastPlugins: [katexMathPlugin] }));
+    assert.doesNotThrow(() => mdxToJs(readFileSync(new URL(path, learn), 'utf8'), { features: { math: true, rawHtml: true }, mdastPlugins: [katexMathPlugin] }));
   });
 }

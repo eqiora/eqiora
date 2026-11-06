@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use eqiora_geometry::{GeometryGraph, PlanarTopologyHandle};
+use eqiora_geometry::{GeometryGraph, GeometryTopologyHandle};
 
 use super::*;
 use crate::MeshProductionLineageEnvelopeV1;
@@ -20,7 +20,7 @@ fn geometry() -> CanonicalGeometryV1 {
             &BTreeMap::from([
                 (
                     "fluid".to_owned(),
-                    vec![PlanarTopologyHandle::from(left.region())],
+                    vec![GeometryTopologyHandle::from(left.region())],
                 ),
                 ("solid".to_owned(), vec![right.region().into()]),
                 (
