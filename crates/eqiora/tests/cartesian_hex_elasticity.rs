@@ -167,7 +167,10 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
     )
     .unwrap();
     assert_eq!(replay.to_bytes().unwrap(), bytes);
-    let native = mesh.mesh();
+    assert_physical_hex_corners(mesh.mesh());
+}
+
+fn assert_physical_hex_corners(native: &CartesianMesh) {
     assert_eq!(native.entity_count(0), Some(27));
     assert_eq!(native.entity_count(3), Some(8));
     for cell in 0..8 {
@@ -189,6 +192,12 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
             }
         }
     }
+}
+
+#[test]
+fn native_hex_corner_order_binds_nonunit_physical_axes_without_solving() {
+    let native = CartesianMesh::uniform(&[[0., 2.], [0., 3.], [0., 4.]], &[2; 3]).unwrap();
+    assert_physical_hex_corners(&native);
 }
 
 #[test]

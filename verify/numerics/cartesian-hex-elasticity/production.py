@@ -79,6 +79,7 @@ def authenticate_plan(plan, model, field):
     require(plan.execution.workers == 1 and plan.execution.placement == 'host-serial', 'unexpected execution placement')
     mesh = plan.mesh
     require(mesh.dimension == 3, 'Mesh dimension differs')
+    require(json.loads(mesh.to_bytes())['resources']['mesh']['kind'] == 'structured-cartesian', 'retained Mesh family differs')
     coordinates = tuple(tuple(float(v) for v in p) for p in mesh.coordinates)
     expected = set(itertools.product((0., 1., 2.), (0., 1.5, 3.), (0., 2., 4.)))
     require(len(coordinates) == 27 and set(coordinates) == expected, 'physical vertex bijection differs')
