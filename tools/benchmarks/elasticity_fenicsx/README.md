@@ -1,7 +1,8 @@
 # Ordinary two-dimensional elasticity comparison (protocol)
 
-This protocol is declared before candidate observations. No timings or accuracy
-outcomes have been collected for this comparison. It compares the shipped
+This protocol is declared before candidate observations. The protocol was committed before candidate observations. The
+[correctness record](results/correctness.json) now qualifies the stated accuracy
+gates; no timing campaign has run. It compares the shipped
 `Eqiora.Solid.LinearElasticity.IsotropicBalanceWithPotential2d` component through
 ordinary compile → resolve → run against FEniCSx 0.11 quadrilateral Q1 elasticity.
 It covers intrinsic two-dimensional, constant-coefficient small-strain elasticity,
@@ -100,3 +101,30 @@ output parent must have a fresh JIT cache. Recheck all eight output reports with
 `validate.py report...`; this recomputes field accuracy and convergence rather
 than accepting stored accuracy summaries. The common measurement helper must
 be present in the checkout before running workers.
+
+## Correctness observation
+
+Both tools passed all four declared mesh levels through the shared fresh-child
+collector. Continuous L2 orders were 1.9953, 1.9946 and 1.9984; gradient H1
+orders were 1.0004, 1.0003 and 1.0000. Each tool independently passed the
+analytic field, true-residual, essential-boundary and nonzero-load equilibrium
+gates. This is evidence for this manufactured Q1 problem and optimized
+development wheel. It is not a distribution-profile qualification or runtime
+comparison.
+
+The [record](results/correctness.json) identifies the actual wheel producer and
+frozen harness separately. The [raw inventory](results/raw-sha256.json) binds
+the retained reports, candidate fields, logs and artifact receipt. Failed
+adapter attempts remain in the parent scratch directory described by the
+record; they did not change the analytic reference or acceptance tolerances.
+
+<picture>
+  <source media="(max-width: 600px)" srcset="results/accuracy-mobile.png">
+  <img src="results/accuracy.png" alt="Eqiora and FEniCSx show second-order displacement and first-order gradient convergence, independently checked against the manufactured analytic field.">
+</picture>
+
+The dotted curve is the Q1 interpolant of the exact analytic displacement,
+computed independently of either PDE solve. It is a visual comparison, not an
+expected candidate solution. Reproduce both images with `plot_accuracy.py`
+using NumPy and Matplotlib; the script first verifies the retained raw reports
+against their hashes and re-evaluates their continuous errors.

@@ -1,0 +1,110 @@
+{
+  "launch.json": {
+    "sha256": "4fda13790f5a84a90a7b2e862be8c2a03b38ed992e96352719e11630a0dacbf8",
+    "bytes": 401
+  },
+  "n16/eqiora/candidate-field.json": {
+    "sha256": "c0d54e7abacca3700622c9c6f3b0369a0a26b2b9131a65b4923e083d301976b7",
+    "bytes": 40735
+  },
+  "n16/eqiora/result.json": {
+    "sha256": "58982c6564d5320c99813350f73317575c088cc947c650dfdd0254e38e823353",
+    "bytes": 39209
+  },
+  "n16/eqiora/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "n16/fenicsx/candidate-field.json": {
+    "sha256": "0793440153b60078bf590dcde409e9dc0544391ba8df7150acaad5b6841c190c",
+    "bytes": 40635
+  },
+  "n16/fenicsx/result.json": {
+    "sha256": "ac85ee7fd25d2f65a7747acd4465ba62f7d5c527143d90f38d09a305fcbaab1d",
+    "bytes": 47747
+  },
+  "n16/fenicsx/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "n32/eqiora/candidate-field.json": {
+    "sha256": "3e25f2ecda69be26e4cbcca7ee40078fd57ff030eae31f0f0c0f89dd21a25a60",
+    "bytes": 155199
+  },
+  "n32/eqiora/result.json": {
+    "sha256": "11a253bd232375427108a6dfd4410121f80e1dfe108d940d60cf50332490ef45",
+    "bytes": 125187
+  },
+  "n32/eqiora/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "n32/fenicsx/candidate-field.json": {
+    "sha256": "bb95dc430ca4fa0ae28f0546b972e68328cba31829d5dc53e6c00b04efee9665",
+    "bytes": 155111
+  },
+  "n32/fenicsx/result.json": {
+    "sha256": "6e5ed18ed3274278126ae61d13ff1d45c304bf1e343b139f97e60aca724029ad",
+    "bytes": 133729
+  },
+  "n32/fenicsx/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "n4/eqiora/candidate-field.json": {
+    "sha256": "e5a79ec07f4a1d06b505c41b824fd8b6826ddd7ced67b7064abcb601f521a945",
+    "bytes": 3847
+  },
+  "n4/eqiora/result.json": {
+    "sha256": "f46e4adef58967b736a6fa8bae68879018ba777cdd4ac197c610acc2fe8ea3ce",
+    "bytes": 12411
+  },
+  "n4/eqiora/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "n4/fenicsx/candidate-field.json": {
+    "sha256": "99b56a35c9a8bb93ef3ddd8486c642e76651dfae0020dfc15f3cd0c06bd1eddb",
+    "bytes": 3749
+  },
+  "n4/fenicsx/result.json": {
+    "sha256": "89ea01f49590aeb6d9821c809ecd2bbe71064232d92ac6282fad1ad1c2e83bbd",
+    "bytes": 20959
+  },
+  "n4/fenicsx/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "n8/eqiora/candidate-field.json": {
+    "sha256": "de9870f54c912a942ba5079b0e68982be466fd784ef84c11adbd07dbf66eab53",
+    "bytes": 11494
+  },
+  "n8/eqiora/result.json": {
+    "sha256": "3eedb088cc43a05e6f07138c23df792462f0e24590674cfd9c6d56cc04221a40",
+    "bytes": 17804
+  },
+  "n8/eqiora/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "n8/fenicsx/candidate-field.json": {
+    "sha256": "c18c3cd7b60836940b009ac68590027b85c76e5d7bf3e48b2ba3660fdaa473b0",
+    "bytes": 11407
+  },
+  "n8/fenicsx/result.json": {
+    "sha256": "fab7b361c4585ba5311206143b035208c96b1ed1c68fb53efae224fb6ab7d564",
+    "bytes": 26390
+  },
+  "n8/fenicsx/worker.log": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  "optimized-artifact-receipt.json": {
+    "sha256": "e6c5059b62759f39f385e261a4641b51e234c07d5548b1d6cbe105baf80f5672",
+    "bytes": 14759
+  },
+  "summary.json": {
+    "sha256": "f5cba65d296cd5e7b80710c2e3fe0017fa3ac05eaa06185613a7b9471e66f881",
+    "bytes": 3789
+  }
+}
