@@ -1,0 +1,215 @@
+---
+title: 3D Poisson comparison with FEniCSx
+description: Accuracy, runtime and memory for one 3D Q1 workload on a busy shared CPU.
+---
+
+import ExactSourceLink from '@components/site/ExactSourceLink.astro';
+import comparisonFigure from '../../../../../performance/2026-11-06-poisson-3d-fenicsx-runtime.png';
+
+Both tools passed the independent accuracy and true-residual checks at all
+three mesh levels. **Eqiora was slower in ordinary execution at every level.**
+At 16 cells per axis, its median was **865.259 ms**, compared with **22.845 ms**
+for FEniCSx, about **37.9 times longer** in this campaign.
+
+This was one campaign on a busy shared Intel Xeon Gold 6346 server. The worker's
+SMT sibling stayed 100% busy during monitoring. These observations do not
+establish a stable performance baseline or a general ranking. They are separate
+from the earlier [2D comparison](/evidence/poisson-fenicsx/), which used different
+sources and hardware.
+
+<img src={comparisonFigure.src} width={comparisonFigure.width} height={comparisonFigure.height} style="max-width: 100%; height: auto;"
+  alt="On three cube meshes Eqiora execution is slower; both tools' L2 errors decrease at approximately second order. Runtime ranges are from seven calls on a busy shared host." />
+
+## Problem and accuracy
+
+Both tools solve on a cube with side length $\ell=1\,\mathrm{m}$:
+
+$$
+-\Delta u=\frac{3\pi^2}{\ell^2}\sin(\pi x/\ell)\sin(\pi y/\ell)\sin(\pi z/\ell),\qquad
+u=0\text{ on every face}.
+$$
+
+Each sine argument divides its physical coordinate by $\ell=1\,\mathrm{m}$.
+The forcing has units m⁻² for the dimensionless potential; the exact solution
+is the product of the three normalized sine factors.
+Both use hexahedral Q1 elements, binary64 arithmetic and two-point tensor
+Gauss integration. The actual FEniCSx rule, vertex-to-DOF correspondence and
+six essential faces are checked. Eqiora uses its ordinary installed Python
+compile, GeometryGraph cuboid, resolve and run APIs.
+
+Both use zero-start BiCGStab with identity preconditioning, relative tolerance
+`1e-12`, absolute tolerance `1e-14` and a 10,000-iteration limit. Every solve
+took one iteration: this load is a single discrete eigenmode, so it does not
+test general Krylov convergence. Each accepted result passes its true-residual
+target and the existing independent analytic Q1 error allowance.
+
+Continuous L2 errors are norms over the physical cube, with units m³ᐟ². The
+refinement orders are approximately 2.00004 and 1.99973 in both tools.
+Agreement between the tools is not the accuracy oracle.
+
+| N / tool | Continuous L2 error |
+|---|---:|
+| 4 / Eqiora | 0.02298303 |
+| 4 / FEniCSx | 0.02298303 |
+| 8 / Eqiora | 0.005745602 |
+| 8 / FEniCSx | 0.005745602 |
+| 16 / Eqiora | 0.001436674 |
+| 16 / FEniCSx | 0.001436674 |
+
+The <ExactSourceLink path="verify/numerics/cartesian-poisson-3d-fem-fvm/references/README.md" kind="blob">independent derivation</ExactSourceLink>
+and its existing tolerance are unchanged. At the finest level both tools have
+4,913 total and 3,375 free coefficients. Eqiora eliminates essential values;
+FEniCSx retains identity rows. Zero boundary data and initial values give the
+same effective free problem.
+
+## Ordinary execution
+
+Each row summarizes seven uninstrumented calls after two warmups. A cold call
+and one separate diagnostic precede those warmups. The seven calls describe
+within-process spread, not seven independent process repetitions. One fresh
+child and JIT directory are used per tool and mesh; tool order alternates by
+level. There was no repeated campaign or selection of faster attempts.
+
+Execution includes fresh assembly, zero-start accepted solve and primary field
+return, retaining only mesh and model/forms. No previous matrix, factorization,
+preconditioner or Result is supplied for reuse. Accuracy integration, output
+inspection, protocol checks, Result destruction and writes are outside the clock.
+Median and median absolute deviation (MAD) below are milliseconds.
+
+| N / tool | Median ± MAD (ms) |
+|---|---:|
+| 4 / Eqiora | 19.114 ± 0.023 |
+| 4 / FEniCSx | 1.241 ± 0.014 |
+| 8 / Eqiora | 108.367 ± 1.879 |
+| 8 / FEniCSx | 4.116 ± 0.042 |
+| 16 / Eqiora | 865.259 ± 12.402 |
+| 16 / FEniCSx | 22.845 ± 0.136 |
+
+The measurement record retains every wall and process-CPU sample, range and
+cold call. Median process CPU divided by wall time ranges from 0.992 to 1.001;
+this does not rule out contention, which can slow both clocks.
+
+## Mesh, preparation and memory
+
+Mesh and preparation are single cold observations. Eqiora's mesh clock includes
+GeometryGraph construction and geometry checks; preparation includes compile
+and resolve. FEniCSx mesh creation and function-space/form preparation are
+separate, with form compilation in a fresh JIT cache. Preparation wall time
+includes compiler-child work; process CPU excludes that child CPU. Imports are
+outside these clocks. Fresh processes do not imply cold operating-system caches.
+
+The tables retain each mesh level. Mesh setup and preparation are the cold
+observations described above. Finalization/assembly and linear solve use the
+[separate diagnostic calls](#separate-native-diagnostics). All durations are
+wall milliseconds.
+
+### 4 cells per axis
+
+| Tool / operation | Wall (ms) |
+|---|---:|
+| Eqiora mesh setup | 2.796 |
+| FEniCSx mesh setup | 3.576 |
+| Eqiora preparation | 10.755 |
+| FEniCSx preparation | 916.790 |
+| Eqiora finalization | 7.587 |
+| FEniCSx assembly | 1.265 |
+| Eqiora linear solve | 0.033 |
+| FEniCSx linear solve | 0.138 |
+
+### 8 cells per axis
+
+| Tool / operation | Wall (ms) |
+|---|---:|
+| Eqiora mesh setup | 13.501 |
+| FEniCSx mesh setup | 4.870 |
+| Eqiora preparation | 19.949 |
+| FEniCSx preparation | 828.879 |
+| Eqiora finalization | 58.584 |
+| FEniCSx assembly | 4.117 |
+| Eqiora linear solve | 0.111 |
+| FEniCSx linear solve | 0.208 |
+
+### 16 cells per axis
+
+| Tool / operation | Wall (ms) |
+|---|---:|
+| Eqiora mesh setup | 88.446 |
+| FEniCSx mesh setup | 13.793 |
+| Eqiora preparation | 85.512 |
+| FEniCSx preparation | 848.736 |
+| Eqiora finalization | 467.107 |
+| FEniCSx assembly | 24.229 |
+| Eqiora linear solve | 0.873 |
+| FEniCSx linear solve | 0.742 |
+
+### Memory
+
+Peak RSS below is sampled after the first field return, before accuracy checks
+and profiling. It includes imports and preparation; it is not operator-only
+memory. The record also retains final whole-child and separate completed-child
+high-water marks. These are not simultaneous aggregate process-tree memory.
+
+| N / tool | Cold process peak RSS (KiB) |
+|---|---:|
+| 4 / Eqiora | 52828 |
+| 4 / FEniCSx | 98852 |
+| 8 / Eqiora | 55672 |
+| 8 / FEniCSx | 100360 |
+| 16 / Eqiora | 126332 |
+| 16 / FEniCSx | 108068 |
+
+## Separate native diagnostics
+
+The finalization/assembly and linear-solve rows above come from one extra
+profiled call per tool and mesh, separate from the seven uninstrumented calls.
+They are inclusive tool-native observations, not a partition of an ordinary
+execution median. The two tools' boundaries differ, so these rows do not
+establish phase speed ratios.
+
+Eqiora scalar finalization includes numerical preparation, representability
+checks and canonical-system construction, excluding earlier mapping work.
+FEniCSx assembly includes allocation, assembly, lifting, ghost accumulation and
+boundary conditions. Its linear bracket includes KSP setup, solve, true-residual
+acceptance and policy/summary queries. Full phase inventories are retained.
+At 16 cells per axis, Eqiora also recorded 383.645 ms of solve self time; this
+observation alone does
+not attribute that time to a particular operation.
+
+## Environment and reproduction
+
+This uses an optimized Eqiora **development wheel**, version `0.1.5`, built from
+an sdist with Rust 1.89, fat LTO and the repository's package-specific optimization
+overrides. It is not a new published release or a complete distribution-profile
+acceptance. The external stack uses the checked-in lock.
+Both Python environments used CPython 3.13.18 and NumPy 2.5.4. The external
+stack used DOLFINx, Basix and FFCx 0.11.0, UFL 2026.1.0, PETSc/petsc4py
+3.25.6 and mpi4py 4.1.2. Each child uses one CPU and one rank, with GPU hidden.
+`OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS`,
+`RAYON_NUM_THREADS` and `BLIS_NUM_THREADS` were all `1`.
+
+The worker ran on logical CPU 8 and its sibling was CPU 40; the supervisor ran
+on CPU 9, on another physical core. Monitoring covered 21.636 seconds. CPU 40
+was 100% busy, and the supervisor's sibling was 96.58% busy. Governor, boost and
+topology settings matched before and after; no host settings were changed and
+no utilization cutoff was applied.
+
+The <ExactSourceLink path="docs/performance/2026-11-06-poisson-3d-fenicsx-runtime.json" kind="blob">complete observation record</ExactSourceLink>
+retains actual harness and wheel-producer identities separately, artifact
+hashes, software versions, field observations, every timing sample, memory,
+CPU monitoring and original-file digests. Machine-local paths are omitted from
+this public projection; it is not presented as the original raw files.
+
+Use the <ExactSourceLink path="tools/benchmarks/poisson_fenicsx/README.md" kind="blob">declared protocol and installed-environment commands</ExactSourceLink>
+with `--dimension 3 --levels 4 8 16 --mode benchmark`. Verify the optimized wheel
+and correctness prerequisites first. The harness rejects missing required
+telemetry instead of inventing solve time by subtraction.
+
+Recreate the figure from committed observations, without either solver:
+
+```bash
+uv run --no-project --python 3.13 --with matplotlib==3.11.2 --with numpy==2.5.4 \
+  python tools/benchmarks/poisson_fenicsx/plot_runtime_3d.py
+```
+
+The plotting program rechecks each saved field against the analytic oracle
+before drawing the observations.

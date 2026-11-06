@@ -16,7 +16,7 @@
 | Restart/replay conformance | ✅ | ✅ | ✅ | ⬜ | Fixed-step semantic lineage; adaptive/distributed paths remain |
 | Gradient finite-difference checks | ✅ | ✅ | ✅ | ⬜ | Parameter, shape, time, and hybrid bounded cases |
 | Benchmark problem catalog | ✅ | 🟨 | 🟨 | ⬜ | Roadmap exists; most mature application benchmarks remain unimplemented |
-| External FEM comparison | 🟨 | 🟨 | ⬜ | ⬜ | [2D Q1 Poisson results](https://eqiora.org/evidence/poisson-fenicsx/) record accuracy, CPU timings and memory against FEniCSx. The [3D Q1 harness](../../tools/benchmarks/poisson_fenicsx/README.md) checks manufactured error, boundary values and true residuals on three CPU mesh levels and supports timing collection; publication of 3D measurements remains pending. No registered external case, stable baseline, MPI/GPU or broader physics comparison. |
+| External FEM comparison | 🟨 | 🟨 | ⬜ | ⬜ | [2D Q1 Poisson results](https://eqiora.org/evidence/poisson-fenicsx/) record accuracy, CPU timings and memory against FEniCSx. The [3D Q1 comparison](https://eqiora.org/evidence/poisson-fenicsx-3d/) records accuracy, timings and memory on a busy shared CPU. No registered external case, stable baseline, MPI/GPU or broader physics comparison. |
 | Regression performance baselines | 🟨 | 🟨 | 🟨 | ⬜ | Stable hardware-normalized gates and history remain |
 | Numerical tolerance policy | ✅ | ✅ | ✅ | ⬜ | Case-local explicit tolerances; product-wide precision/tolerance guidance remains |
 | Property-based testing | 🟨 | 🟨 | 🟨 | ⬜ | Some internal tests; systematic semantic generators and shrinking remain |
