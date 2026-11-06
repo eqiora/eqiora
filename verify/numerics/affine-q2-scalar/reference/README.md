@@ -159,11 +159,11 @@ a HALF_EVEN context and moves to the immediately adjacent representable value
 below and above the rounded result. Monotonicity then encloses sqrt or ln of the
 whole input interval. This does not assume these functions honor FLOOR/CEILING.
 
-## Still required for a candidate comparison
+## Candidate comparison contract
 
-`candidate_comparator_implemented` is false. This reference does not certify a
-candidate solver residual, assembly controls, or norm integration. The comparison
-must independently apply the complete rational tensor operator and declared Gauss
+The frozen table generation records `candidate_comparator_implemented` as false.
+The full-vector comparator described below now implements the mathematical checks;
+production assembly controls still require independent confirmation. It must apply the complete rational tensor operator and declared Gauss
 load to the complete physical coefficient vector, enclosing rounding in the
 residual r. With mu=product_i(h_i/15), mass Gershgorin and box Poincare imply
 lambda_min(A_global)>=lambda mu. Hence B1=||r||2/sqrt(lambda mu) bounds the energy
@@ -177,3 +177,82 @@ the exact-integral quadratic norm for the full coefficient vector; agreement of
 two floating point quadrature orders alone is not an integration bound. The
 production quadrature choice and general selection path remain to be reviewed and
 frozen before any candidate run.
+
+## Full physical coefficient comparator
+
+`compare.py` now implements the full-vector residual and exact norm comparison
+specified above. The frozen tables retain their original
+`candidate_comparator_implemented: false` generation metadata; no table endpoints
+or generation records were changed when adding the comparator. Production rule
+selection and candidate use still require the stated review.
+
+Each input file is a JSON object with **exactly** these keys:
+
+```json
+{
+  "schema": 1,
+  "lengths_m": [2, 3],
+  "N": 2,
+  "gauss_points": 4,
+  "records": [
+    {"coordinates_m": ["0", "0"], "value_binary64_hex": "0x0.0p+0"}
+  ]
+}
+```
+
+The example shows only one record; a valid file must supply all (2N+1)^d physical
+nodes, including edges, faces, cell-interior Q2 nodes, and boundaries. Ordering is
+arbitrary. Coordinates are exact decimal strings for x_i=k L_i/(2N). These boxes
+and meshes have dyadic coordinates, so decimal coordinate validation needs no
+rounding tolerance. Every node must appear exactly once. Vertex-only data, extra
+or off-grid coordinates, missing nodes, duplicate coordinates, duplicate JSON
+keys, unexpected keys, nonfinite numbers, wrong dimensions and unsupported controls
+are rejected.
+
+Coefficient values must be canonical Python `float.hex()` strings. The comparator
+parses the binary64 and converts it with `Decimal.from_float`, preserving its
+exact binary rational value, including subnormals. A decimal approximation of that
+value is not accepted as a substitute. Boundary coefficients must be exactly zero
+(signed zero is also zero); a nonzero boundary value is rejected with error code
+`boundary`. The comparator does not silently impose boundary conditions or discard
+any supplied nonzero boundary values.
+
+For the interior vector, assemble the one-dimensional mass and stiffness matrices
+from the exact local rational formulas, then apply tensor products by sparse axis
+contractions. No amplitude projection is used. Assemble the four-point Gauss load
+independently cell by cell on the physical grid, evaluating the sine with the
+certified identity sin(pi s)=cos(pi(s-1/2)). The exact continuous cross integral uses
+the analytic one-dimensional nodal load integrals, including endpoint/midpoint sine
+factors. Consequently, both norm quadratic formulas above apply to arbitrary
+complete coefficient vectors, not only vectors in the sine-mode space. Outward
+interval rounding encloses matrix application, forcing, residual, norms and bounds.
+The norm integration uncertainty is the complete resulting interval width; it
+includes arithmetic and transcendental uncertainty. No quadrature approximation is
+used to integrate the candidate's norms.
+
+```sh
+python3 compare.py coefficients.json --output comparison.json
+# A JSON array containing one complete input for each N=2,4,8:
+python3 compare.py levels.json --levels --output comparison-levels.json
+```
+
+Exit status is zero only when every budget and reference consistency check passes,
+one for a valid comparison that fails its budget, and two for malformed or
+unsupported input. Output includes the frozen reference file's SHA-256, complete,
+interior and boundary coefficient counts, physical norm units, continuous error
+intervals, Euclidean residual interval, lambda, mu, B0/B1, and separate reference,
+norm integration, solve and total uncertainty bounds. Reference and norm widths
+are counted in full, conservatively; the solve bound is counted by its upper
+endpoint. The allowed bound is exactly 1e-3 times the reference Gauss-load norm,
+with no candidate-derived threshold. Acceptance requires the total upper bound
+not exceed the allowed lower bound, and the candidate norm interval intersect the
+reference interval enlarged by the solve bound.
+
+Rates are emitted only for a complete, same-box N=2,4,8 set. Each rate has a measured
+continuous norm interval and an interval enlarged by the two independently
+computed total uncertainty bounds. The predeclared log2(1.001/0.999) bound is also
+reported. A failed comparison remains failed even when its rate looks plausible.
+Synthetic tests check arbitrary 3D polynomial coefficients against analytic full
+integrals, rational dense tensor application, exact single-node perturbation norms,
+complete-level rate propagation, budgets and malformed input. These tests use no
+production solver or exported candidate.
