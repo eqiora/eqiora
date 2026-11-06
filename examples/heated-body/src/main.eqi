@@ -44,13 +44,20 @@ public component TransientHeatedBody(
 ) {
   state temperature: K on body in h1;
   initial { temperature = 300[K]; }
-  relation prescribed_x_lower on x_lower { trace(temperature) = 300[K]; }
-  relation prescribed_x_upper on x_upper { trace(temperature) = 300[K]; }
-  relation prescribed_y_lower on y_lower { trace(temperature) = 300[K]; }
-  relation prescribed_y_upper on y_upper { trace(temperature) = 300[K]; }
-  law heat_balance on body {
-    storage capacity * temperature;
-    flux -conductivity * grad(temperature);
-    source heating;
-  }
+  instance conduction: scalar.TransientHeat2d(
+    body = body, temperature = temperature,
+    conductivity = conductivity, capacity = capacity, heating = heating
+  );
+  instance prescribed_x_lower: scalar.FixedTemperature2d(
+    body = body, face = x_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_x_upper: scalar.FixedTemperature2d(
+    body = body, face = x_upper, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_lower: scalar.FixedTemperature2d(
+    body = body, face = y_lower, temperature = temperature, value = 300[K]
+  );
+  instance prescribed_y_upper: scalar.FixedTemperature2d(
+    body = body, face = y_upper, temperature = temperature, value = 300[K]
+  );
 }
