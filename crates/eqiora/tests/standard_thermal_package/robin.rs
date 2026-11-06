@@ -1,3 +1,5 @@
+#[path = "robin/observations.rs"]
+mod observations;
 use super::*;
 
 // Fixed protocol inputs (L, H, k, h, Tc, Tinf). The external reference owns

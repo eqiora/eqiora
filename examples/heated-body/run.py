@@ -27,9 +27,10 @@ def convection_geometry_and_bindings(length=2.0, height=1.0, conductivity=3.0,
     return geometry, bindings
 
 
-def resolve(model, geometry, temporal=None):
-    mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
-        geometry, eqiora.meshing.CartesianMesher(cells=(2, 2))))
+def resolve(model, geometry, temporal=None, mesh=None):
+    if mesh is None:
+        mesh = eqiora.meshing.generate(eqiora.meshing.resolve(
+            geometry, eqiora.meshing.CartesianMesher(cells=(2, 2))))
     linear = eqiora.solve.Linear(
         algorithm=eqiora.solve.LinearSolver.BiConjugateGradientStabilized,
         preconditioner=eqiora.solve.Preconditioner.Identity,

@@ -29,7 +29,7 @@ Coordinates, units, finite binary64 values and unique complete node coverage are
 checked as well. Authored boundary integrals expose four physical outward heat
 flows, the right-face temperature integral and the right-face convective heat
 flow through general public Result observations with explicit facet quadrature.
-Their independent Q1 functional bounds are being prepared by the reference owner.
+The canonical reference supplies their predeclared Q1 functional bounds.
 
 This higher-layer test follows imported compilation, resolution, ordinary public
 execution, and Plan/Result save and reopening. Its result-only comparison does
@@ -42,10 +42,30 @@ public heat-flow observations and artifact replay reach that path. No fabricated
 matrix or load is supplied to the full comparator. Physical outward heat and
 private weak reactions have opposite sign; the package does not conflate them.
 
-The result-only native and installed Python numerical checks are pending core
-and reference integration. The observation path is the existing general
+The result-only native and installed Python numerical checks are implemented
+and awaiting execution after core and reference integration and source/build review. The observation path is the existing general
 `CommonResult::observe` / Python `result.observe` API, without a new public API
 or a private capture seam. Source checks alone do not establish numerical
 correctness. The intended numerical scope is steady affine Cartesian 2D Q1 on
 the serial CPU reference provider. TPFA rejection is checked by the core owner.
 Transient convection, threaded CPU, MPI and GPU execution are not verified here.
+
+## Retained producer artifacts
+
+The native producer uses `EQIORA_ROBIN_PACKAGE_EVIDENCE` when supplied, otherwise
+creates a fresh directory below the user's home cache. The installed Python
+producer accepts `EQIORA_ROBIN_PACKAGE_PYTHON_EVIDENCE`; its test scratch must be
+home-backed. Each case retains authored source, the exact Model, Mesh, Plan and
+Result, the strict oracle input and report, and a producer receipt. The package
+closure is saved as a native compilation record or a moved Python offline store.
+The receipt binds actual Field and Observable identities, boundary Domain IDs,
+accepted Result identities, units, facet quadrature and artifact hashes.
+
+Both producers canonically reopen Model, Plan and Result bytes, verify all nine
+replayed coefficients equal the exported coefficients, then evaluate all six
+primary and replay observations through the general public observation owner.
+The oracle checks each evaluation independently against its fixed coefficient-
+functional and analytic-target bounds. Matching labels or replay values alone
+are not treated as evidence of their origin. The native test and
+[`test_convective_heat_observations.py`](../../../bindings/python/tests/test_convective_heat_observations.py)
+do not access private operators, loads or nodal weak reactions.
