@@ -172,7 +172,7 @@ fn ordinary_hex_typed_source_and_retained_mesh_prepare_without_solving() {
 }
 
 #[test]
-fn altered_authored_tensor_forms_reject_before_any_result() {
+fn physical_authored_traction_mismatches_reject_before_any_result() {
     prepare_source(SOURCE).expect("positive preparation must pass before mutation controls");
     let (equations, weak) = SOURCE.split_once("  form weak for balance {").unwrap();
     let changed_component = format!(
@@ -180,25 +180,38 @@ fn altered_authored_tensor_forms_reject_before_any_result() {
         equations,
         "  parameter incorrect_tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.5,0.1875]);\n",
         "  form weak for balance {",
-        weak.replacen("trace(w),tx,", "trace(w),incorrect_tx,", 1)
+        weak.replacen("dot(trace(w),tx)", "dot(trace(w),incorrect_tx)", 1)
     );
     let reversed_traction = format!(
         "{}  form weak for balance {{{}",
         equations,
-        weak.replacen("trace(w),tx,", "trace(w),-tx,", 1)
+        weak.replacen("dot(trace(w),tx)", "dot(trace(w),-tx)", 1)
     );
+    assert_rejected_controls([
+        ("changed component", changed_component),
+        ("reversed traction", reversed_traction),
+    ]);
+}
+
+#[test]
+fn unsupported_or_illtyped_authored_forms_reject_before_any_result() {
+    prepare_source(SOURCE).expect("positive preparation must pass before unsupported controls");
+    let (equations, weak) = SOURCE.split_once("  form weak for balance {").unwrap();
     let incomplete_contraction = format!(
         "{}  form weak for balance {{{}",
         equations,
-        weak.replacen("axes=((0,0),(1,1))", "axes=((0,0),)", 1)
+        weak.replacen("frobenius(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))", "contract(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))),axes=((0,0),))", 1)
     );
     let wrong_unit = SOURCE.replacen("parameter tx: vector<Pa,3>", "parameter tx: vector<N,3>", 1);
-    for (control, source) in [
-        ("changed component", changed_component),
-        ("reversed traction", reversed_traction),
+    assert_rejected_controls([
         ("partial contraction", incomplete_contraction),
         ("wrong unit", wrong_unit),
-    ] {
+    ]);
+}
+
+fn assert_rejected_controls(controls: [(&str, String); 2]) {
+    for (control, source) in controls {
+        assert_ne!(source, SOURCE, "{control} did not alter the source");
         let diagnostics = prepare_source(&source).expect_err(control);
         assert!(
             !diagnostics.is_empty(),

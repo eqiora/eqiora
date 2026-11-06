@@ -43,21 +43,32 @@ def altered_sources():
     equations, weak = source.split('  form weak for balance {', 1)
     return {
         'changed-component': equations + '  parameter incorrect_tx: vector<Pa,3> = tensor_value(frame=body,components=[1.125,0.5,0.1875]);\n'
-            + '  form weak for balance {' + weak.replace('trace(w),tx,', 'trace(w),incorrect_tx,', 1),
-        'reversed-traction': equations + '  form weak for balance {' + weak.replace('trace(w),tx,', 'trace(w),-tx,', 1),
-        'partial-contraction': equations + '  form weak for balance {' + weak.replace('axes=((0,0),(1,1))', 'axes=((0,0),)', 1),
+            + '  form weak for balance {' + weak.replace('dot(trace(w),tx)', 'dot(trace(w),incorrect_tx)', 1),
+        'reversed-traction': equations + '  form weak for balance {' + weak.replace('dot(trace(w),tx)', 'dot(trace(w),-tx)', 1),
+        'partial-contraction': equations + '  form weak for balance {' + weak.replace('frobenius(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))))', 'contract(grad(w),(2*mu*symmetric_part(grad(displacement)) + lambda*isotropic_lift(div(displacement))),axes=((0,0),))', 1),
         'wrong-unit': source.replace('parameter tx: vector<Pa,3>', 'parameter tx: vector<N,3>', 1),
     }
 
 
-@pytest.mark.parametrize('control', tuple(altered_sources()))
-def test_altered_authored_tensor_forms_reject_before_any_result(tmp_path, control):
+@pytest.mark.parametrize('control', ('changed-component', 'reversed-traction'))
+def test_physical_authored_traction_mismatches_reject_before_any_result(tmp_path, control):
+    reject_altered_source(tmp_path, control)
+
+
+@pytest.mark.parametrize('control', ('partial-contraction', 'wrong-unit'))
+def test_unsupported_or_illtyped_authored_forms_reject_before_any_result(tmp_path, control):
+    reject_altered_source(tmp_path, control)
+
+
+def reject_altered_source(tmp_path, control):
     baseline = tmp_path/'baseline'
     baseline.mkdir()
     production.prepare(eqiora, baseline)
     mutated = tmp_path/'mutated'
     mutated.mkdir()
+    source = altered_sources()[control]
+    assert source != (CASE/'model.eqi').read_text()
     with pytest.raises(eqiora.ValidationError) as caught:
-        production.prepare(eqiora, mutated, source=altered_sources()[control].encode())
+        production.prepare(eqiora, mutated, source=source.encode())
     assert 'coefficient alias exceeds the authored expression inventory' not in str(caught.value)
     assert not (mutated/'result.json').exists()
